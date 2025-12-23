@@ -5,10 +5,10 @@ const { uploadLimiter } = require('../middleware/rateLimiter');
 const { validateFinancialInput } = require('../middleware/validator');
 const { extractTextFromDocument, verifyData, calculateCreditScore } = require('../services/financialValidationService');
 
-router.post('/process', uploadLimiter, validateFinancialInput, upload.fields([
+router.post('/process', uploadLimiter, upload.fields([
   { name: 'slik', maxCount: 1 },
   { name: 'salary_slip', maxCount: 1 }
-]), validateFileContent, async (req, res) => {
+]), validateFileContent, validateFinancialInput, async (req, res) => {
   try {
     const mockMode = req.body.mock_mode === 'true';
 
@@ -76,7 +76,7 @@ router.post('/process', uploadLimiter, validateFinancialInput, upload.fields([
 
     const verification = await verifyData(formData, extractedData);
     
-    const creditScore = calculateCreditScore(formData, extractedData);
+    const creditScore = calculateCreditScore(formData, extractedData, verification);
 
     const response = {
       region: formData.region,
@@ -89,7 +89,9 @@ router.post('/process', uploadLimiter, validateFinancialInput, upload.fields([
       documents_verification: {
         slik_detected: !!req.files.slik,
         salary_slip_detected: !!req.files.salary_slip,
-        data_match_status: verification.match_status
+        data_match_status: verification.match_status,
+        message: verification.message,
+        issues: verification.issues
       },
       risk_assessment: creditScore,
       extracted_data: extractedData

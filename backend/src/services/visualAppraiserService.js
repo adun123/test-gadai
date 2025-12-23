@@ -110,67 +110,68 @@ PROCESS FLOW (Thinking Mode):
    - Count ALL defects carefully (both visible in photos and reported by employee)
    - Output ONLY in JSON format`;
 
-function evaluateGradeByDefects(aiDetectedDefects, manualDefects) {
+function evaluateGradeByDefects(aiDetectedDefects = [], manualDefects = []) {
   const allDefects = [...aiDetectedDefects, ...manualDefects];
   const totalDefects = allDefects.length;
   
   const hasCriticalDefect = allDefects.some(d => 
     d.toLowerCase().includes('broken') ||
-    d.toLowerCase().includes('cracked screen') ||
+    d.toLowerCase().includes('crack') ||
+    d.toLowerCase().includes('dead') ||
     d.toLowerCase().includes('not working') ||
+    d.toLowerCase().includes('missing') ||
     d.toLowerCase().includes('fake') ||
     d.toLowerCase().includes('swollen battery')
   );
   
+  let grade;
   if (hasCriticalDefect || totalDefects >= 7) {
-    return 'D';
+    grade = 'D';
   } else if (totalDefects >= 4) {
-    return 'C';
+    grade = 'C';
   } else if (totalDefects >= 1) {
-    return 'B';
+    grade = 'B';
   } else {
-    return 'A';
+    grade = 'A';
   }
+  
+  return {
+    grade,
+    total_defects: totalDefects,
+    has_critical_defect: hasCriticalDefect
+  };
 }
 
-function calculateLoanOffer(marketPrice, grade) {
+function calculateLoanOffer(grade, marketPrice) {
   const gradePercentages = {
-    'A': 0.70,
-    'B': 0.60,
-    'C': 0.40,
+    'A': 70,
+    'B': 60,
+    'C': 40,
     'D': 0
   };
   
   const percentage = gradePercentages[grade] || 0;
-  return Math.floor(marketPrice * percentage);
+  const loanAmount = Math.floor(marketPrice * (percentage / 100));
+  
+  return {
+    loan_percentage: percentage,
+    loan_amount: loanAmount
+  };
 }
 
-function getGradeReasoning(grade, totalDefects, aiDefects, manualDefects) {
-  const reasons = [];
+function getGradeReasoning(evaluation) {
+  const { grade, total_defects, has_critical_defect } = evaluation;
   
-  if (manualDefects.length > 0) {
-    reasons.push(`Employee reported ${manualDefects.length} additional defect(s) during physical inspection`);
-  }
-  
-  if (aiDefects.length > 0) {
-    reasons.push(`AI detected ${aiDefects.length} defect(s) from photos`);
-  }
-  
-  reasons.push(`Total ${totalDefects} defect(s) found`);
-  
-  const gradeExplanations = {
-    'A': 'Item in excellent condition',
-    'B': 'Item in good condition with minor defects',
-    'C': 'Item has significant damage',
-    'D': 'Item severely damaged or fake'
+  const gradeDescriptions = {
+    'A': 'Perfect condition with no visible defects',
+    'B': `Good condition with ${total_defects} minor defects`,
+    'C': `Fair condition with ${total_defects} defects requiring attention`,
+    'D': has_critical_defect ? 
+      `Poor condition - critical defect detected requiring rejection` : 
+      `Poor condition with ${total_defects} defects - not suitable for loan`
   };
   
-  reasons.push(gradeExplanations[grade]);
-  
-  const percentage = { 'A': 70, 'B': 60, 'C': 40, 'D': 0 }[grade];
-  reasons.push(`Loan = ${percentage}% x Market Price`);
-  
-  return reasons.join('. ');
+  return `Grade ${grade}: ${gradeDescriptions[grade] || 'Unknown grade'}`;
 }
 
 async function analyzeCollateral(imageBuffers, region, riskScore, additionalDefects = []) {
@@ -270,5 +271,7 @@ async function searchMarketPrice(query) {
 module.exports = {
   analyzeCollateral,
   searchMarketPrice,
-  calculateLoanOffer
+  evaluateGradeByDefects,
+  calculateLoanOffer,
+  getGradeReasoning
 };
