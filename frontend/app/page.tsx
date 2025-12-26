@@ -1,15 +1,6 @@
-import React from "react";  
-
-import PawnForm from "../components/form/PawnForm";
-
-
-
+// app/page.tsx
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return (
-    <main style={{ padding: 24 }}>
-      <PawnForm />
-    </main>
-  );
+  redirect("/dashboard");
 }
-
