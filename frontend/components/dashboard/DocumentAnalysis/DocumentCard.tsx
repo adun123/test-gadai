@@ -46,12 +46,16 @@ function mockExtract(fileName: string): ExtractedDocument {
   };
 }
 
-export default function DocumentCard() {
+export default function DocumentCard({
+  onAnalyzed,
+}: {
+  onAnalyzed?: (doc: ExtractedDocument | null) => void;
+}) {
   const [state, setState] = useState<ProcessState>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [doc, setDoc] = useState<ExtractedDocument | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-const [editMode, setEditMode] = useState(false);
+  const [editMode, setEditMode] = useState(false);
 
   const statusLabel = useMemo(() => {
     switch (state) {
@@ -85,6 +89,7 @@ const [editMode, setEditMode] = useState(false);
       const extracted = mockExtract(file.name);
       setDoc(extracted);
       setState("done");
+      onAnalyzed?.(extracted);
     } catch (e) {
       setState("error");
       setErrorMsg(e instanceof Error ? e.message : "Unknown error");
@@ -93,6 +98,7 @@ const [editMode, setEditMode] = useState(false);
 
   function reset() {
     setDoc(null);
+    onAnalyzed?.(null);
     setErrorMsg(null);
     setState("idle");
   }
@@ -102,8 +108,10 @@ const [editMode, setEditMode] = useState(false);
     // re-run mock quickly (simulate)
     setState("processing");
     setTimeout(() => {
-      setDoc(mockExtract(doc.fileName));
+      const extracted = mockExtract(doc.fileName);
+      setDoc(extracted);
       setState("done");
+      onAnalyzed?.(extracted);
     }, 700);
   }
 
@@ -143,11 +151,11 @@ const [editMode, setEditMode] = useState(false);
         ) : (
           <>
             <ExtractedSummary
-                doc={doc}
-                editMode={editMode}
-                onToggleEdit={() => setEditMode((v) => !v)}
-                onChange={(patch) => setDoc((prev) => (prev ? { ...prev, ...patch } : prev))}
-              />
+              doc={doc}
+              editMode={editMode}
+              onToggleEdit={() => setEditMode((v) => !v)}
+              onChange={(patch) => setDoc((prev) => (prev ? { ...prev, ...patch } : prev))}
+            />
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <button

@@ -7,6 +7,7 @@ import DashboardGrid from "@/components/dashboard/DashboardGrid";
 import DocumentCard from "@/components/dashboard/DocumentAnalysis/DocumentCard";
 import VehicleCard from "@/components/dashboard/VehicleAssessment/VehicleCard";
 import PricingCard from "@/components/dashboard/ValuationPricing/PricingCard";
+import ExportButton from "@/components/dashboard/ExportButton";
 
 type VehiclePayload = {
   brandModel?: string;
@@ -59,27 +60,40 @@ function SkeletonBlock({ lines = 3 }: { lines?: number }) {
 export default function DashboardPage() {
   const [vehicleReady, setVehicleReady] = useState(false);
   const [vehicle, setVehicle] = useState<VehiclePayload>({});
+  const [document, setDocument] = useState<any>(null);
+  const [pricing, setPricing] = useState<any>(null);
+
+  const exportData = {
+    document,
+    vehicle,
+    pricing,
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       <PageHeader
         title="Dashboard Overview"
         subtitle="Manage vehicle appraisals, credit checks, and pricing analytics."
       />
 
       <DashboardGrid>
-         <DocumentCard />
+        <DocumentCard onAnalyzed={setDocument} />
 
-         <VehicleCard
+        <VehicleCard
           onAnalyzed={(v) => {
-            
             setVehicleReady(!!v?.brandModel);
             setVehicle(v || {});
           }}
         />
 
-        <PricingCard vehicleReady={vehicleReady} vehicle={vehicle} />
-
+        <PricingCard
+          vehicleReady={vehicleReady}
+          vehicle={vehicle}
+          onPricingCalculated={setPricing}
+        />
       </DashboardGrid>
+
+      <ExportButton data={exportData} disabled={!vehicleReady && !document} />
     </div>
   );
 }

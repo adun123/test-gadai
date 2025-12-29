@@ -2,9 +2,16 @@
 
 import { useMemo, useState } from "react";
 
+export type VehicleCondition = "Mulus (Grade A)" | "Normal (Grade B)" | "Banyak Lecet (Grade C)" | "Perlu Perbaikan (Grade D)";
 
+export type PricingBreakdown = {
+  basePrice: number;        // harga pasar
+  adjustment: number;       // penyesuaian (bisa minus)
+  assetValue: number;       // base + adjustment
+  confidence: number;       // 0..1
+};
 
-type VehicleCondition = "Mulus (Grade A)" | "Normal (Grade B)" | "Banyak Lecet (Grade C)" | "Perlu Perbaikan (Grade D)";
+export type PawnProduct = "reguler" | "harian";
 
 type Props = {
   vehicleReady: boolean;
@@ -13,15 +20,7 @@ type Props = {
     year?: string;
     physicalCondition?: VehicleCondition;
   };
-};
-// Tambahkan type di atas komponen (di PricingCard.tsx)
-type PawnProduct = "reguler" | "harian";
-
-type PricingBreakdown = {
-  basePrice: number;        // harga pasar
-  adjustment: number;       // penyesuaian (bisa minus)
-  assetValue: number;       // base + adjustment
-  confidence: number;       // 0..1
+  onPricingCalculated?: (data: PricingBreakdown) => void;
 };
 
 function rupiah(n: number) {
@@ -33,6 +32,7 @@ function rupiah(n: number) {
   if (abs >= 1_000) return `Rp ${(n / 1_000).toFixed(0)}rb`;
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
+
 function addDays(date: Date, days: number) {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
@@ -60,8 +60,6 @@ function mockPawnSimulation(assetValue: number, tenorDays: number, product: Pawn
 
   return { appraisal, maxDisbursement, sewaModal, dueDate };
 }
-
-
 
 function mockPricing(
   location: string,
@@ -103,14 +101,16 @@ function mockPricing(
   return { basePrice: base, adjustment, assetValue, confidence: Math.max(0.6, Math.min(0.97, confidence)) };
 }
 
-export default function PricingCard({ vehicleReady, vehicle }: Props) {
+export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated }: Props) {
   const [location, setLocation] = useState("Jakarta Selatan, DKI Jakarta");
   const [product, setProduct] = useState<PawnProduct>("reguler");
   const [tenorDays, setTenorDays] = useState(90);
 
   const breakdown = useMemo(() => {
     if (!vehicleReady) return null;
-    return mockPricing(location, vehicle);
+    const res = mockPricing(location, vehicle);
+    setTimeout(() => onPricingCalculated?.(res), 0);
+    return res;
   }, [vehicleReady, location, vehicle?.brandModel, vehicle?.year, vehicle?.physicalCondition]);
 
   return (
@@ -157,14 +157,22 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
         <div className={`${vehicleReady ? "" : "opacity-50 pointer-events-none"}`}>
           <label className="text-sm font-medium text-blue-700">Location</label>
           <div className="relative mt-1">
-            <input
+            <select
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              className="w-full rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-gray-900 shadow-sm"
-            />
+              className="w-full appearance-none rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-gray-900 shadow-sm outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option>Jakarta Selatan, DKI Jakarta</option>
+              <option>Bandung, Jawa Barat</option>
+              <option>Surabaya, Jawa Timur</option>
+              <option>Semarang, Jawa Tengah</option>
+              <option>Medan, Sumatera Utara</option>
+              <option>Makassar, Sulawesi Selatan</option>
+              <option>Denpasar, Bali</option>
+            </select>
             <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </span>
           </div>
@@ -226,97 +234,103 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
 
         {/* Pawn simulation block */}
         {vehicleReady && breakdown ? (
-        (() => {
+          (() => {
             const sim = mockPawnSimulation(breakdown.assetValue, tenorDays, product);
 
             return (
-            <div className="space-y-4">
+              <div className="space-y-4">
                 {/* Tabs */}
                 <div className="rounded-2xl border bg-gray-50 p-2">
-                <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
-                    type="button"
-                    onClick={() => setProduct("reguler")}
-                    className={[
+                      type="button"
+                      onClick={() => setProduct("reguler")}
+                      className={[
                         "rounded-xl px-4 py-2 text-sm font-extrabold",
                         product === "reguler" ? "bg-white shadow-sm border" : "text-gray-500",
-                    ].join(" ")}
+                      ].join(" ")}
                     >
-                    Gadai Reguler
+                      Gadai Reguler
                     </button>
                     <button
-                    type="button"
-                    onClick={() => setProduct("harian")}
-                    className={[
+                      type="button"
+                      onClick={() => setProduct("harian")}
+                      className={[
                         "rounded-xl px-4 py-2 text-sm font-extrabold",
                         product === "harian" ? "bg-white shadow-sm border" : "text-gray-500",
-                    ].join(" ")}
+                      ].join(" ")}
                     >
-                    Gadai Harian
+                      Gadai Harian
                     </button>
-                </div>
+                  </div>
                 </div>
 
                 {/* Tenor */}
                 <div className="rounded-2xl border bg-white p-5">
-                <div className="flex items-end justify-between">
+                  <div className="flex items-end justify-between">
                     <p className="text-sm font-extrabold text-gray-900">Tenor Pinjaman</p>
                     <div className="text-right">
-                    <p className="text-3xl font-extrabold text-blue-700">{tenorDays}</p>
-                    <p className="text-sm font-semibold text-gray-600">Hari</p>
+                      <p className="text-3xl font-extrabold text-blue-700">{tenorDays}</p>
+                      <p className="text-sm font-semibold text-gray-600">Hari</p>
                     </div>
-                </div>
+                  </div>
 
-                <input
+                  <input
                     type="range"
                     min={1}
                     max={120}
                     value={tenorDays}
                     onChange={(e) => setTenorDays(Number(e.target.value))}
-                    className="mt-4 w-full"
-                />
+                    className="mt-4 w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
 
-                <div className="mt-2 flex justify-between text-xs font-semibold text-gray-500">
+                  <div className="mt-2 flex justify-between text-xs font-semibold text-gray-500">
                     <span>1 Hari</span>
                     <span>120 Hari</span>
-                </div>
+                  </div>
                 </div>
 
                 {/* Result panel */}
-                <div className="rounded-2xl bg-blue-700 p-5 text-white shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                    <p className="text-xs font-extrabold text-white/80">Nilai Taksir Gadai</p>
-                    <p className="mt-2 text-lg font-extrabold">{sim.appraisal.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}</p>
-                    <p className="mt-2 text-xs text-white/70">
-                        • Memperhitungkan risiko penurunan nilai
-                    </p>
+                <div className="rounded-2xl bg-blue-600 p-5 text-white shadow-lg relative overflow-hidden">
+                  {/* Decorative blur */}
+                  <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+
+                  <div className="relative z-10">
+                    <div className="flex items-start justify-between gap-4 border-b border-white/20 pb-4 mb-4">
+                      <div>
+                        <p className="text-xs font-extrabold text-blue-100">Nilai Taksir Gadai</p>
+                        <p className="text-2xl font-extrabold mt-1">{sim.appraisal.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}</p>
+                        <p className="mt-1 text-xs text-blue-100/80 flex items-center gap-1">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                          Risk adjusted
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-xs font-extrabold text-blue-100">Maksimal Dana Cair</p>
+                        <p className="text-xl font-extrabold text-yellow-300 mt-1">
+                          {sim.maxDisbursement.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="text-right">
-                    <p className="text-xs font-extrabold text-white/80">Maksimal Dana Cair</p>
-                    <p className="mt-2 text-lg font-extrabold text-yellow-300">
-                        {sim.maxDisbursement.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}
-                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-blue-200 mb-1">SEWA MODAL</p>
+                        <p className="text-sm font-bold">
+                          {sim.sewaModal.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase font-bold text-blue-200 mb-1">JATUH TEMPO</p>
+                        <p className="text-sm font-bold">{formatIDDate(sim.dueDate)}</p>
+                      </div>
                     </div>
+                  </div>
                 </div>
-
-                <div className="mt-6 grid grid-cols-2 gap-4">
-                    <div>
-                    <p className="text-xs font-extrabold text-white/80">SEWA MODAL</p>
-                    <p className="mt-1 text-sm font-bold">
-                        {sim.sewaModal.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}
-                    </p>
-                    </div>
-                    <div className="text-right">
-                    <p className="text-xs font-extrabold text-white/80">JATUH TEMPO</p>
-                    <p className="mt-1 text-sm font-bold">{formatIDDate(sim.dueDate)}</p>
-                    </div>
-                </div>
-                </div>
-            </div>
+              </div>
             );
-        })()
+          })()
         ) : null}
 
       </div>
