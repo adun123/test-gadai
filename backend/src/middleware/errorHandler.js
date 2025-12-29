@@ -29,4 +29,8 @@ const notFound = (req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 };
 
-module.exports = { errorHandler, notFound };
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
+module.exports = { errorHandler, notFound, asyncHandler };
