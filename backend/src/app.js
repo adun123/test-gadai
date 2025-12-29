@@ -18,26 +18,34 @@ const allowed = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
   .map(s => s.trim())
   .filter(Boolean);
+  
+app.use((req, res, next) => {
+  console.log("CORS ORIGIN:", req.headers.origin);
+  next();
+});
+
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map(o => o.trim())
+  .filter(Boolean);
 
 app.use(cors({
   origin: (origin, cb) => {
-    // allow server-to-server (curl, postman)
+    // allow server-to-server, curl, postman
     if (!origin) return cb(null, true);
 
-    // kalau env kosong → allow all (PoC aman)
-    if (allowed.length === 0) return cb(null, true);
+    // exact allow
+    if (allowedOrigins.includes(origin)) return cb(null, true);
 
-    // exact match
-    if (allowed.includes(origin)) return cb(null, true);
-
-    // allow Vercel preview domain frontend
+    // allow FE vercel domain (preview + prod)
     if (origin.endsWith(".vercel.app")) return cb(null, true);
 
-    return cb(new Error(`CORS blocked for origin: ${origin}`));
+    return cb(new Error("CORS BLOCKED: " + origin), false);
   },
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
+
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
