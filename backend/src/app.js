@@ -14,8 +14,29 @@ const pawnDecisionRoutes = require("./routes/pawnDecision");
 const app = express();
 
 app.use(helmet());
+const allowed = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(",") || "*"
+  origin: (origin, cb) => {
+    // allow server-to-server (curl, postman)
+    if (!origin) return cb(null, true);
+
+    // kalau env kosong → allow all (PoC aman)
+    if (allowed.length === 0) return cb(null, true);
+
+    // exact match
+    if (allowed.includes(origin)) return cb(null, true);
+
+    // allow Vercel preview domain frontend
+    if (origin.endsWith(".vercel.app")) return cb(null, true);
+
+    return cb(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
 app.use(express.json({ limit: "10mb" }));
