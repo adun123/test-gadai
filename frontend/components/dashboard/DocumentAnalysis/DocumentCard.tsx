@@ -121,7 +121,7 @@ export default function DocumentCard({ onAnalyzed }: DocumentCardProps) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [selectedDocType, setSelectedDocType] = useState<DocumentType>("SLIK OJK");
-  const [useMock, setUseMock] = useState(true);
+  const [useMock, setUseMock] = useState(false);
 
 
   const statusLabel = useMemo(() => {
