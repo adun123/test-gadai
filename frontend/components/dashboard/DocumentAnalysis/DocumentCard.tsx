@@ -164,12 +164,19 @@ async function handleUpload(file: File) {
 
     setState("processing");
 
-    const res = await fetch(url, { method: "POST", body: form });
-    const data = (await res.json()) as ScanApiResponse;
+   const res = await fetch(url, { method: "POST", body: form });
 
-    if (!res.ok || !data.success) {
-      throw new Error(data?.error || `Request failed (HTTP ${res.status})`);
+    const text = await res.text();
+    let data: ScanApiResponse | null = null;
+    try { data = JSON.parse(text); } catch {}
+
+    if (!res.ok) {
+      throw new Error(data?.error || text || `HTTP ${res.status}`);
     }
+    if (!data?.success) {
+      throw new Error(data?.error || "Gagal memproses dokumen.");
+    }
+
 
     const extracted = mapScanToExtracted(data, file.name);
     setDoc(extracted);
