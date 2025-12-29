@@ -116,7 +116,7 @@ export default function VehicleCard({
     
   });
   const [notes, setNotes] = useState("");
-  const [useMock, setUseMock] = useState(true);
+  const [useMock, setUseMock] = useState(false);
   const [lastFiles, setLastFiles] = useState<File[]>([]);
 
 
