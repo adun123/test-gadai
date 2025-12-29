@@ -11,7 +11,54 @@ type VehicleAnalyzedPayload = {
   year: string;
   physicalCondition?: VehicleCondition;
 };
+type VehicleScanApiResponse = {
+  success: boolean;
+  document_type: "VEHICLE" | string;
+  scanned_data: any;
+  scanned_at: string;
+  is_editable: boolean;
+  error?: string;
+};
 
+function mapVehicleScanToUI(payload: any): { form: VehicleForm; notes: string; defects: DefectItem[] } {
+  const s = payload ?? {};
+  const vid = s.vehicle_identification ?? {};
+  const pc = s.physical_condition ?? {};
+
+  const brandModel = [vid.make, vid.model].filter(Boolean).join(" ").trim();
+  const plateNumber = vid.license_plate ?? "";
+  const year = vid.estimated_year ?? "";
+
+  const gradeRaw = (pc.overall_grade || "").toString().toLowerCase();
+  const physicalCondition: VehicleCondition =
+    gradeRaw === "excellent" ? "Mulus (Grade A)"
+    : gradeRaw === "good" ? "Normal (Grade B)"
+    : gradeRaw === "fair" ? "Banyak Lecet (Grade C)"
+    : "Normal (Grade B)";
+
+  const defectsArr: string[] = Array.isArray(pc.defects) ? pc.defects : [];
+  const defects: DefectItem[] = defectsArr.map((label, idx) => {
+    const lower = label.toLowerCase();
+    const severity: DefectItem["severity"] =
+      lower.includes("severe") || lower.includes("major") ? "high"
+      : lower.includes("moderate") ? "medium"
+      : "low";
+    return { id: `ai-${idx}`, label, severity, selected: true };
+  });
+
+  const conf = typeof s.confidence === "number" ? s.confidence : undefined;
+
+  return {
+    form: {
+      brandModel: brandModel || "",
+      plateNumber,
+      year,
+      physicalCondition,
+    },
+    notes: `AI confidence: ${typeof conf === "number" ? conf.toFixed(2) : "n/a"} • Processed ${s.images_processed ?? "?"} foto.`,
+    defects,
+  };
+}
 
 
 type State = "idle" | "uploading" | "processing" | "done" | "error";
@@ -50,11 +97,12 @@ function mockAiDetect(): { form: VehicleForm; notes: string; defects: DefectItem
 
 
 export default function VehicleCard({
+  
     onAnalyzed,
     }: {
         onAnalyzed?: (v: VehicleAnalyzedPayload) => void;
     }) {
-
+  console.log("VehicleCard rendered");
   const [state, setState] = useState<State>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [defects, setDefects] = useState<DefectItem[]>([]);
@@ -68,6 +116,9 @@ export default function VehicleCard({
     
   });
   const [notes, setNotes] = useState("");
+  const [useMock, setUseMock] = useState(true);
+  const [lastFiles, setLastFiles] = useState<File[]>([]);
+
 
   // ✅ penting: setelah AI isi, field defaultnya terkunci (read-only) sampai user klik Edit
   const [editMode, setEditMode] = useState(false);
@@ -89,43 +140,86 @@ export default function VehicleCard({
     return `${base} border-gray-200 bg-white/80 text-gray-700`;
   }
 
-  async function handleUpload(file: File) {
-    setErrorMsg(null);
-    setEditMode(false); // ✅ setelah upload, defaultnya read-only dulu
-    setState("uploading");
+  //integrasi handleupload
+  async function handleUpload(files: File[]) {
+    
+    console.log("VehicleCard handleUpload called:", files?.map(f => f.name));
 
-    try {
-      // preview
-      if (imageUrl) URL.revokeObjectURL(imageUrl);
-      const url = URL.createObjectURL(file);
-      setImageUrl(url);
+  setErrorMsg(null);
+  setEditMode(false);
+  setState("uploading");
 
-      await new Promise((r) => setTimeout(r, 500));
-      setState("processing");
+  try {
+    if (!files || files.length === 0) throw new Error("Pilih minimal 1 foto.");
 
-      // mock AI detect
-      await new Promise((r) => setTimeout(r, 1000));
-      const result = mockAiDetect();
+    const limited = files.slice(0, 5);
+    setLastFiles(limited);
 
-      setForm(result.form);
-      
-      setNotes(result.notes);
-      setDefects(result.defects);
+    // preview pakai foto pertama
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    const preview = URL.createObjectURL(limited[0]);
+    setImageUrl(preview);
 
-      setState("done");
-      onAnalyzed?.({
-        brandModel: result.form.brandModel,
-        year: result.form.year,
-        physicalCondition: result.form.physicalCondition,
-        });
+    setState("processing");
 
-    } catch (e) {
-      setState("error");
-      setErrorMsg(e instanceof Error ? e.message : "Gagal memproses gambar");
+    const formData = new FormData();
+    limited.forEach((f) => formData.append("images", f)); // HARUS "images"
+    
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+    const url = `${base}/api/scan/vehicle${useMock ? "?mock=true" : ""}`;
+
+    const res = await fetch(url, { method: "POST", body: formData });
+    const data = (await res.json()) as VehicleScanApiResponse;
+
+    if (!res.ok) {
+      throw new Error(`Request failed (HTTP ${res.status})`);
     }
+
+    const normalized = normalizeVehicleScan(data);
+    if (!normalized.ok) {
+      throw new Error(normalized.error || "Vehicle scan failed");
+    }
+
+    const mapped = mapVehicleScanToUI(normalized.payload);
+
+
+    setForm(mapped.form);
+    setNotes(mapped.notes);
+    setDefects(mapped.defects);
+
+    setState("done");
+    onAnalyzed?.({
+      brandModel: mapped.form.brandModel,
+      year: mapped.form.year,
+      physicalCondition: mapped.form.physicalCondition,
+    });
+  } catch (e) {
+    setState("error");
+    setErrorMsg(e instanceof Error ? e.message : "Gagal memproses gambar");
+  }
+}
+
+function normalizeVehicleScan(data: VehicleScanApiResponse): { ok: boolean; payload: any; error?: string } {
+  // Case A: wrapper
+  if ("success" in data) {
+    return {
+      ok: !!data.success,
+      payload: data.scanned_data,
+      error: data.error,
+    };
   }
 
-  function reset() {
+  // Case B: raw (README style)
+  if ((data as any)?.vehicle_identification || (data as any)?.physical_condition) {
+    return { ok: true, payload: data };
+  }
+
+  return { ok: false, payload: null, error: (data as any)?.error || "Invalid vehicle scan response" };
+}
+
+
+//integrasi reset
+function reset() {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
     setImageUrl(null);
     setState("idle");
@@ -142,28 +236,19 @@ export default function VehicleCard({
 
 
   }
+const isBusy = state === "uploading" || state === "processing";
+const hasResult = state === "done";
 
-  function reprocess() {
-    if (!imageUrl) return;
-    setEditMode(false);
-    setState("processing");
-    setTimeout(() => {
-      const result = mockAiDetect();
-      setForm(result.form);
-      setNotes(result.notes);
-      setDefects(result.defects);
+//integrasi reprocess
+async function reprocess() {
+  if (lastFiles.length === 0 || isBusy) return;
+  setEditMode(false);
+  await handleUpload(lastFiles);
+}
 
-      setState("done");
-      onAnalyzed?.({
-        brandModel: result.form.brandModel,
-        year: result.form.year,
-        physicalCondition: result.form.physicalCondition,
-        });
-    }, 900);
-  }
 
-  const isBusy = state === "uploading" || state === "processing";
-  const hasResult = state === "done";
+
+
 
   return (
     <section className="rounded-2xl border bg-white p-5 shadow-sm">
@@ -183,6 +268,16 @@ export default function VehicleCard({
           >
             Reset
           </button>
+          <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+            <input
+              type="checkbox"
+              checked={useMock}
+              onChange={(e) => setUseMock(e.target.checked)}
+              disabled={state === "uploading" || state === "processing"}
+            />
+            Use mock
+          </label>
+
         </div>
       </div>
 
@@ -210,7 +305,11 @@ export default function VehicleCard({
           </div>
         ) : null}
 
+
+        {/* Image upload input */}
         <VehicleImageUpload onUpload={handleUpload} disabled={isBusy} />
+
+
 
         {/* Header kecil untuk hasil + tombol edit */}
         <div className="flex items-center justify-between">

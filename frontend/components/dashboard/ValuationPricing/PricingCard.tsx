@@ -1,32 +1,102 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import PricingHeader from "./PricingHeader";
+import PricingGating from "./PricingGating";
+import PricingAlerts from "./PricingAlerts";
+import PricingLocation from "./PricingLocation";
+import TenorSlider from "./TenorSlider";
+import PricingBreakdown from "./PricingBreakdown";
+import PawnSimulation from "./PawnSimulation";
+import PricingFooter from "./PricingFooter";
 
-export type VehicleCondition = "Mulus (Grade A)" | "Normal (Grade B)" | "Banyak Lecet (Grade C)" | "Perlu Perbaikan (Grade D)";
-
-export type PricingBreakdown = {
-  basePrice: number;        // harga pasar
-  adjustment: number;       // penyesuaian (bisa minus)
-  assetValue: number;       // base + adjustment
-  confidence: number;       // 0..1
-};
-
-export type PawnProduct = "reguler" | "harian";
+type VehicleCondition =
+  | "Mulus (Grade A)"
+  | "Normal (Grade B)"
+  | "Banyak Lecet (Grade C)"
+  | "Perlu Perbaikan (Grade D)";
 
 type Props = {
   vehicleReady: boolean;
   vehicle?: {
-    brandModel?: string;
+    brandModel?: string; // ✅ string
     year?: string;
     physicalCondition?: VehicleCondition;
   };
-  onPricingCalculated?: (data: PricingBreakdown) => void;
+  onPricingCalculated?: (data: any) => void;
 };
 
-function rupiah(n: number) {
-  // ringkas ala UI screenshot: Rp 18.5jt / Rp 500rb
-  const abs = Math.abs(n);
 
+type PawnProduct = "reguler" | "harian";
+
+// === API shapes (ikuti calculate.js kamu) ===
+type PricingApiResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    vehicle?: {
+      make?: string;
+      model?: string;
+      year?: number;
+      vehicle_type?: string;
+      province?: string;
+    };
+    condition?: any;
+    pricing?: {
+      market_price?: number;
+      price_range?: { low?: number; high?: number } | null;
+      price_confidence?: "HIGH" | "MEDIUM" | "LOW" | string;
+      data_points?: number;
+      effective_collateral_value?: number;
+      appraisal_value?: number;
+      tenor_days?: number;
+    };
+    breakdown?: any;
+    calculated_at?: string;
+  };
+  error?: string;
+  errors?: any[];
+};
+
+type PawnApiResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    input?: {
+      appraisal_value: number;
+      loan_amount: number;
+      period_days: number;
+    };
+    products?: any; // comparePawnProducts output
+    calculated_at?: string;
+  };
+  error?: string;
+  errors?: any[];
+};
+
+type UiBreakdown = {
+  basePrice: number; // market_price
+  adjustment: number; // (asset_value - base_market_price) (dari breakdown)
+  assetValue: number; // breakdown.pricing_breakdown.asset_value
+  confidence: number; // mapped dari confidence_level score (0..1) fallback
+  confidenceLabel?: string;
+  priceRange?: { low?: number; high?: number } | null;
+  dataPoints?: number;
+  appraisalValue?: number;
+  effectiveCollateralValue?: number;
+  tenorDays?: number;
+};
+function Spinner({ label }: { label?: string }) {
+  return (
+    <div className="inline-flex items-center gap-2">
+      <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
+      {label ? <span className="text-xs font-semibold text-gray-600">{label}</span> : null}
+    </div>
+  );
+}
+
+function rupiah(n: number) {
+  const abs = Math.abs(n);
   if (abs >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1)}M`;
   if (abs >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1)}jt`;
   if (abs >= 1_000) return `Rp ${(n / 1_000).toFixed(0)}rb`;
@@ -43,296 +113,301 @@ function formatIDDate(d: Date) {
   return d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function mockPawnSimulation(assetValue: number, tenorDays: number, product: PawnProduct) {
-  // Aturan mock (PoC):
-  // - LTV (maks dana cair) tergantung produk
-  const ltv = product === "reguler" ? 0.92 : 0.85;
-  const maxDisbursement = Math.floor(assetValue * ltv / 1000) * 1000;
-
-  // - Nilai taksir sedikit di atas maks cair (biar terasa "ada buffer risiko")
-  const appraisal = Math.floor((maxDisbursement / 0.925) / 1000) * 1000;
-
-  // - Sewa modal sederhana: % per bulan pro-rata
-  const monthlyRate = product === "reguler" ? 0.015 : 0.02; // mock
-  const sewaModal = Math.floor((maxDisbursement * monthlyRate * (tenorDays / 30)) / 1000) * 1000;
-
-  const dueDate = addDays(new Date(), tenorDays);
-
-  return { appraisal, maxDisbursement, sewaModal, dueDate };
+function mapVehicleConditionToGrade(cond?: VehicleCondition): "Excellent" | "Good" | "Fair" | "Poor" {
+  if (!cond) return "Good";
+  if (cond.includes("Grade A")) return "Excellent";
+  if (cond.includes("Grade B")) return "Good";
+  if (cond.includes("Grade C")) return "Fair";
+  return "Poor";
 }
 
-function mockPricing(
-  location: string,
-  vehicle?: Props["vehicle"]
-): PricingBreakdown {
-  // base price mock: pakai year + brandModel sedikit biar "hidup"
-  const year = Number(vehicle?.year ?? "2021") || 2021;
-  const age = Math.max(0, new Date().getFullYear() - year);
+function splitBrandModel(brandModel?: string): { make: string; model: string } {
+  const raw = typeof brandModel === "string" ? brandModel.trim() : ""; // ✅ guard
+  if (!raw) return { make: "", model: "" };
 
-  let base = 19_000_000; // default
-  const bm = (vehicle?.brandModel ?? "").toLowerCase();
-  if (bm.includes("nmax")) base = 28_500_000;
-  if (bm.includes("vario")) base = 21_500_000;
-  if (bm.includes("scoopy")) base = 18_500_000;
+  const parts = raw.split(/\s+/);
+  if (parts.length === 1) return { make: parts[0], model: parts[0] };
 
-  // depreciation ringan per tahun
-  base = Math.max(9_000_000, base - age * 900_000);
+  const make = parts[0];
+  const model = parts.slice(1).join(" ");
+  return { make, model };
+}
 
-  // adjustment berdasar kondisi
-  const cond = vehicle?.physicalCondition ?? "Normal (Grade B)";
-  let adjustment = 0;
-  if (cond.includes("Grade A")) adjustment = +300_000;
-  if (cond.includes("Grade B")) adjustment = 0;
-  if (cond.includes("Grade C")) adjustment = -500_000;
-  if (cond.includes("Grade D")) adjustment = -1_200_000;
 
-  // lokasi bisa mempengaruhi sedikit
-  const loc = location.toLowerCase();
-  if (loc.includes("jakarta")) base += 200_000;
-  if (loc.includes("jawa barat")) base += 100_000;
+function parseProvince(location: string): string {
+  // UI kamu input "Jakarta Selatan, DKI Jakarta"
+  // backend minta "province"
+  const pieces = location.split(",").map((x) => x.trim()).filter(Boolean);
+  if (pieces.length >= 2) return pieces[1];
+  return pieces[0] || "Indonesia";
+}
 
-  const assetValue = base + adjustment;
+function confidenceToNumber(label?: string): number {
+  // fallback kalau backend belum kasih score
+  if (!label) return 0.75;
+  const x = label.toLowerCase();
+  if (x.includes("high")) return 0.9;
+  if (x.includes("medium")) return 0.75;
+  return 0.6;
+}
 
-  // confidence mock: makin jelas data, makin tinggi
-  let confidence = 0.86;
-  if (vehicle?.brandModel && vehicle?.year && vehicle?.physicalCondition) confidence = 0.94;
-  if (cond.includes("Grade D")) confidence -= 0.05;
+function mapPricingResponseToUi(resp: PricingApiResponse): UiBreakdown | null {
+  if (!resp?.success || !resp.data) return null;
 
-  return { basePrice: base, adjustment, assetValue, confidence: Math.max(0.6, Math.min(0.97, confidence)) };
+  const pricing = resp.data.pricing || {};
+  const breakdown = resp.data.breakdown || {};
+
+  const baseMarket = Number(pricing.market_price ?? breakdown?.pricing_breakdown?.base_market_price?.value ?? 0) || 0;
+  const assetValue = Number(breakdown?.pricing_breakdown?.asset_value ?? 0) || 0;
+
+  // adjustment = asset - base (kalau breakdown ada), kalau nggak ada ya 0
+  const adjustment = assetValue && baseMarket ? assetValue - baseMarket : 0;
+
+  const confScore =
+    typeof breakdown?.confidence_level?.score === "number"
+      ? breakdown.confidence_level.score
+      : confidenceToNumber(pricing.price_confidence);
+
+  return {
+    basePrice: baseMarket,
+    adjustment,
+    assetValue: assetValue || baseMarket,
+    confidence: Math.max(0.6, Math.min(0.97, confScore)),
+    confidenceLabel: breakdown?.confidence_level?.level || pricing.price_confidence || "—",
+    priceRange: (pricing.price_range as any) ?? breakdown?.pricing_breakdown?.base_market_price?.range ?? null,
+    dataPoints: pricing.data_points ?? breakdown?.pricing_breakdown?.base_market_price?.data_points,
+    appraisalValue: pricing.appraisal_value ?? breakdown?.collateral_calculation?.appraisal_value,
+    effectiveCollateralValue:
+      pricing.effective_collateral_value ?? breakdown?.collateral_calculation?.effective_collateral_value,
+    tenorDays: pricing.tenor_days ?? breakdown?.collateral_calculation?.tenor_days,
+  };
 }
 
 export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated }: Props) {
   const [location, setLocation] = useState("Jakarta Selatan, DKI Jakarta");
+  const [tenorDays, setTenorDays] = useState(30);
   const [product, setProduct] = useState<PawnProduct>("reguler");
-  const [tenorDays, setTenorDays] = useState(90);
+  const [useMock, setUseMock] = useState(false);
 
-  const breakdown = useMemo(() => {
-    if (!vehicleReady) return null;
-    const res = mockPricing(location, vehicle);
-    setTimeout(() => onPricingCalculated?.(res), 0);
-    return res;
-  }, [vehicleReady, location, vehicle?.brandModel, vehicle?.year, vehicle?.physicalCondition]);
+  const [state, setState] = useState<"idle" | "processing" | "done" | "error">("idle");
+  const isLoading = state === "processing";
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [pricing, setPricing] = useState<UiBreakdown | null>(null);
+
+  const [pawnState, setPawnState] = useState<"idle" | "processing" | "done" | "error">("idle");
+  const [pawnError, setPawnError] = useState<string | null>(null);
+  const [pawnResp, setPawnResp] = useState<PawnApiResponse | null>(null);
+  
+
+  const debounceRef = useRef<number | null>(null);
+
+  const province = useMemo(() => parseProvince(location), [location]);
+  const safeBrandModel =
+  typeof vehicle?.brandModel === "string" ? vehicle.brandModel : "";
+
+  const makeModel = useMemo(() => splitBrandModel(safeBrandModel), [safeBrandModel]);
+
+  const yearNum = useMemo(() => {
+    const y = Number(vehicle?.year);
+    return Number.isFinite(y) ? y : undefined;
+  }, [vehicle?.year]);
+
+  const overallGrade = useMemo(() => mapVehicleConditionToGrade(vehicle?.physicalCondition), [vehicle?.physicalCondition]);
+
+  const canCallPricing = vehicleReady && !!makeModel.make && !!makeModel.model;
+
+  async function fetchPricing() {
+    if (!canCallPricing) return;
+
+    setErrorMsg(null);
+    setState("processing");
+
+    try {
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+      const url = `${base}/api/calculate/pricing${useMock ? "?mock=true" : ""}`;
+
+      const body = {
+        vehicle_identification: {
+          make: makeModel.make,
+          model: makeModel.model,
+          year: yearNum,
+          vehicle_type: "Matic",
+        },
+        physical_condition: {
+          overall_grade: overallGrade,
+          defects: [], // kalau nanti ada defects dari VehicleCard, isi di sini
+        },
+        province,
+        tenor_days: tenorDays,
+      };
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = (await res.json()) as PricingApiResponse;
+
+      if (!res.ok || !data.success) {
+        const msg =
+          data?.error ||
+          (Array.isArray(data?.errors) ? data.errors?.[0]?.msg : null) ||
+          `Request failed (HTTP ${res.status})`;
+        throw new Error(msg);
+      }
+
+      const mapped = mapPricingResponseToUi(data);
+      setPricing(mapped);
+      setState("done");
+    } catch (e) {
+      setState("error");
+      setErrorMsg(e instanceof Error ? e.message : "Gagal menghitung pricing");
+      setPricing(null);
+    }
+  }
+
+  async function fetchPawn(appraisalValue: number) {
+    setPawnError(null);
+    setPawnState("processing");
+
+    try {
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+      const url = `${base}/api/calculate/pawn${useMock ? "?mock=true" : ""}`;
+
+      // loan_amount: di UI sekarang kamu belum input manual, jadi default = appraisal
+      const body = {
+        appraisal_value: appraisalValue,
+        loan_amount: appraisalValue,
+        tenor_days: tenorDays,
+      };
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = (await res.json()) as PawnApiResponse;
+
+      if (!res.ok || !data.success) {
+        const msg =
+          data?.error ||
+          (Array.isArray(data?.errors) ? data.errors?.[0]?.msg : null) ||
+          `Request failed (HTTP ${res.status})`;
+        throw new Error(msg);
+      }
+
+      setPawnResp(data);
+      setPawnState("done");
+    } catch (e) {
+      setPawnState("error");
+      setPawnError(e instanceof Error ? e.message : "Gagal simulasi gadai");
+      setPawnResp(null);
+    }
+  }
+
+  // Auto-call pricing on changes (debounced)
+  useEffect(() => {
+    if (!canCallPricing) {
+      setPricing(null);
+      setState("idle");
+      return;
+    }
+
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+
+    debounceRef.current = window.setTimeout(() => {
+      fetchPricing();
+    }, 450);
+
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canCallPricing, province, makeModel.make, makeModel.model, yearNum, overallGrade, tenorDays, useMock]);
+
+  // Auto-call pawn after pricing ready (whenever appraisal/tenor changes)
+  useEffect(() => {
+    const appraisal = pricing?.appraisalValue;
+    if (!vehicleReady || !appraisal) {
+      setPawnResp(null);
+      setPawnState("idle");
+      return;
+    }
+    fetchPawn(appraisal);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pricing?.appraisalValue, tenorDays, useMock, vehicleReady]);
+
+  const breakdown = pricing;
+
+  const confidenceText = breakdown ? `${Math.round(breakdown.confidence * 100)}%` : "—";
+  const isBusy = state === "processing" || pawnState === "processing";
+
+  // UI helper: ambil angka produk dari response comparePawnProducts (kalau beda struktur, tetep aman fallback)
+  const pawnSim = useMemo(() => {
+    if (!pawnResp?.data?.products || !breakdown?.appraisalValue) return null;
+
+    const products = pawnResp.data.products;
+    const key = product === "reguler" ? "regular" : "daily";
+    const p = products?.[key];
+
+    // fallback kalau struktur beda:
+    const maxLoan = p?.max_loan_amount ?? pawnResp.data.input?.loan_amount ?? 0;
+    const sewaModal = p?.sewa_modal?.sewa_modal_amount ?? 0;
+
+    // due date dari schedule (kalau ada) atau tenorDays
+    const due =
+      p?.schedule?.due_date ? new Date(p.schedule.due_date) : addDays(new Date(), tenorDays);
+
+    return {
+      appraisal: breakdown.appraisalValue,
+      maxDisbursement: maxLoan,
+      sewaModal,
+      dueDate: due, // ✅ Date
+    };
+
+  }, [pawnResp, product, breakdown?.appraisalValue, tenorDays]);
 
   return (
     <section className="rounded-2xl border bg-white shadow-sm">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 border-b bg-slate-50 px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="text-blue-700">
-            {/* pricing icon */}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M7 7h6a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h8"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <path d="M12 3v4M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
-          <div>
-            <h2 className="text-base font-extrabold">Valuation &amp; Pricing</h2>
-            <p className="mt-1 text-sm text-gray-600">Generate pricing recommendations based on market data and rules.</p>
-          </div>
-        </div>
+      <PricingHeader
+        useMock={useMock}
+        setUseMock={setUseMock}
+        isBusy={isBusy}
+        isLoading={isLoading}
+        breakdown={breakdown}
+      />
 
-        <div className="rounded-xl border bg-white px-3 py-2 text-xs font-extrabold text-gray-700">
-          <span className="mr-2 inline-block h-2 w-2 rounded-full bg-green-500 align-middle" />
-          AI Confidence: {breakdown ? `${Math.round(breakdown.confidence * 100)}%` : "—"}
-        </div>
-      </div>
+      <div className="space-y-4 p-5">
+        <PricingGating vehicleReady={vehicleReady} />
 
-      <div className="p-5 space-y-4">
-        {/* Gating state */}
-        {!vehicleReady ? (
-          <div className="rounded-2xl border border-dashed bg-gray-50 p-5">
-            <p className="text-sm font-extrabold text-gray-900">Menunggu data kendaraan</p>
-            <p className="mt-1 text-sm text-gray-600">
-              Upload &amp; analisis foto kendaraan dulu untuk memunculkan estimasi harga.
-            </p>
-          </div>
-        ) : null}
+        <PricingAlerts errorMsg={errorMsg} isLoading={isLoading} />
 
-        {/* Location */}
-        <div className={`${vehicleReady ? "" : "opacity-50 pointer-events-none"}`}>
-          <label className="text-sm font-medium text-blue-700">Location</label>
-          <div className="relative mt-1">
-            <select
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="w-full appearance-none rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-gray-900 shadow-sm outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option>Jakarta Selatan, DKI Jakarta</option>
-              <option>Bandung, Jawa Barat</option>
-              <option>Surabaya, Jawa Timur</option>
-              <option>Semarang, Jawa Tengah</option>
-              <option>Medan, Sumatera Utara</option>
-              <option>Makassar, Sulawesi Selatan</option>
-              <option>Denpasar, Bali</option>
-            </select>
-            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-          </div>
+        <PricingLocation
+          vehicleReady={vehicleReady}
+          location={location}
+          setLocation={setLocation}
+          province={province}
+        />
 
-          <p className="mt-2 text-sm text-gray-500">
-            Estimasi harga untuk wilayah{" "}
-            <span className="font-semibold text-gray-700">
-              {location.split(",")[0] || location}
-            </span>
-          </p>
-        </div>
+        <TenorSlider vehicleReady={vehicleReady} tenorDays={tenorDays} setTenorDays={setTenorDays} />
 
-        {/* Breakdown */}
-        <div className={`${vehicleReady ? "" : "opacity-50 pointer-events-none"}`}>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border bg-white p-4">
-              <p className="text-xs font-extrabold text-gray-500">HARGA PASAR</p>
-              <p className="mt-2 text-lg font-extrabold text-gray-900">
-                {breakdown ? rupiah(breakdown.basePrice) : "—"}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">Base price (current market value)</p>
-            </div>
+        <PricingBreakdown vehicleReady={vehicleReady} breakdown={breakdown} state={state} rupiah={rupiah} />
 
-            <div className="rounded-2xl border bg-white p-4">
-              <p className="text-xs font-extrabold text-gray-500">PENYESUAIAN</p>
-              <p
-                className={[
-                  "mt-2 text-lg font-extrabold",
-                  breakdown && breakdown.adjustment < 0 ? "text-red-600" : "text-gray-900",
-                ].join(" ")}
-              >
-                {breakdown ? `${breakdown.adjustment < 0 ? "-" : "+"} ${rupiah(Math.abs(breakdown.adjustment))}` : "—"}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">Condition adjustment (assumption)</p>
-            </div>
+        <PawnSimulation
+          vehicleReady={vehicleReady}
+          pawnError={pawnError}
+          breakdown={breakdown}
+          product={product}
+          setProduct={setProduct}
+          pawnSim={pawnSim}
+          pawnState={pawnState}
+          formatIDDate={formatIDDate}
+        />
 
-            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-              <p className="text-xs font-extrabold text-blue-700">NILAI ASET</p>
-              <p className="mt-2 text-lg font-extrabold text-blue-700">
-                {breakdown ? rupiah(breakdown.assetValue) : "—"}
-              </p>
-              <p className="mt-1 text-xs text-blue-700/80">Asset value (+ confidence)</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Edu / trust (opsional tapi bagus buat PoC) */}
-        {vehicleReady && breakdown ? (
-          <div className="rounded-2xl border bg-gray-50 p-4 text-sm text-gray-700">
-            <p className="font-bold">Breakdown (Edu &amp; Trust)</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-600">
-              <li>Base price diambil dari referensi pasar (contoh: OLX / database internal).</li>
-              <li>Penyesuaian dihitung dari kondisi fisik (asumsi rule-based untuk PoC).</li>
-              <li>Nilai aset = base price + penyesuaian, disertai confidence level AI.</li>
-            </ul>
-          </div>
-        ) : null}
-
-
-        {/* Pawn simulation block */}
-        {vehicleReady && breakdown ? (
-          (() => {
-            const sim = mockPawnSimulation(breakdown.assetValue, tenorDays, product);
-
-            return (
-              <div className="space-y-4">
-                {/* Tabs */}
-                <div className="rounded-2xl border bg-gray-50 p-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setProduct("reguler")}
-                      className={[
-                        "rounded-xl px-4 py-2 text-sm font-extrabold",
-                        product === "reguler" ? "bg-white shadow-sm border" : "text-gray-500",
-                      ].join(" ")}
-                    >
-                      Gadai Reguler
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setProduct("harian")}
-                      className={[
-                        "rounded-xl px-4 py-2 text-sm font-extrabold",
-                        product === "harian" ? "bg-white shadow-sm border" : "text-gray-500",
-                      ].join(" ")}
-                    >
-                      Gadai Harian
-                    </button>
-                  </div>
-                </div>
-
-                {/* Tenor */}
-                <div className="rounded-2xl border bg-white p-5">
-                  <div className="flex items-end justify-between">
-                    <p className="text-sm font-extrabold text-gray-900">Tenor Pinjaman</p>
-                    <div className="text-right">
-                      <p className="text-3xl font-extrabold text-blue-700">{tenorDays}</p>
-                      <p className="text-sm font-semibold text-gray-600">Hari</p>
-                    </div>
-                  </div>
-
-                  <input
-                    type="range"
-                    min={1}
-                    max={120}
-                    value={tenorDays}
-                    onChange={(e) => setTenorDays(Number(e.target.value))}
-                    className="mt-4 w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-
-                  <div className="mt-2 flex justify-between text-xs font-semibold text-gray-500">
-                    <span>1 Hari</span>
-                    <span>120 Hari</span>
-                  </div>
-                </div>
-
-                {/* Result panel */}
-                <div className="rounded-2xl bg-blue-600 p-5 text-white shadow-lg relative overflow-hidden">
-                  {/* Decorative blur */}
-                  <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-
-                  <div className="relative z-10">
-                    <div className="flex items-start justify-between gap-4 border-b border-white/20 pb-4 mb-4">
-                      <div>
-                        <p className="text-xs font-extrabold text-blue-100">Nilai Taksir Gadai</p>
-                        <p className="text-2xl font-extrabold mt-1">{sim.appraisal.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}</p>
-                        <p className="mt-1 text-xs text-blue-100/80 flex items-center gap-1">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                          Risk adjusted
-                        </p>
-                      </div>
-
-                      <div className="text-right">
-                        <p className="text-xs font-extrabold text-blue-100">Maksimal Dana Cair</p>
-                        <p className="text-xl font-extrabold text-yellow-300 mt-1">
-                          {sim.maxDisbursement.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-[10px] uppercase font-bold text-blue-200 mb-1">SEWA MODAL</p>
-                        <p className="text-sm font-bold">
-                          {sim.sewaModal.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 })}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase font-bold text-blue-200 mb-1">JATUH TEMPO</p>
-                        <p className="text-sm font-bold">{formatIDDate(sim.dueDate)}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()
-        ) : null}
-
+        <PricingFooter vehicleReady={vehicleReady} fetchPricing={fetchPricing} canCallPricing={canCallPricing} isBusy={isBusy} />
       </div>
     </section>
   );

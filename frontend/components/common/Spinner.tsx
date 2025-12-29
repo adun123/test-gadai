@@ -1,27 +1,39 @@
-"use client";
+// components/ui/Spinner.tsx
 import React from "react";
 
-export default function Spinner({ className = "w-5 h-5" }: { className?: string }) {
+type SpinnerProps = {
+  label?: string;
+  size?: "xs" | "sm" | "md" | "lg";
+  inline?: boolean;
+  className?: string;
+};
+
+const SIZE_MAP: Record<NonNullable<SpinnerProps["size"]>, string> = {
+  xs: "h-3 w-3 border-2",
+  sm: "h-4 w-4 border-2",
+  md: "h-5 w-5 border-2",
+  lg: "h-6 w-6 border-[3px]",
+};
+
+export default function Spinner({
+  label,
+  size = "sm",
+  inline = true,
+  className = "",
+}: SpinnerProps) {
   return (
-    <svg
-      className={`animate-spin ${className}`}
-      viewBox="0 0 24 24"
-      aria-label="Loading"
-    >
-      <circle
-        cx="12"
-        cy="12"
-        r="10"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="4"
-        opacity="0.25"
+    <span className={[inline ? "inline-flex" : "flex", "items-center gap-2", className].join(" ")}>
+      <span
+        aria-hidden="true"
+        className={[
+          "animate-spin rounded-full border-gray-300 border-t-gray-900",
+          SIZE_MAP[size],
+        ].join(" ")}
       />
-      <path
-        fill="currentColor"
-        opacity="0.75"
-        d="M12 2a10 10 0 0 1 10 10h-4a6 6 0 0 0-6-6V2z"
-      />
-    </svg>
+      {label ? <span className="text-xs font-semibold text-gray-700">{label}</span> : null}
+
+      {/* A11y */}
+      <span className="sr-only">{label || "Loading"}</span>
+    </span>
   );
 }

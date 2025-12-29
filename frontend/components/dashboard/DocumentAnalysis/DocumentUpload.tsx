@@ -45,7 +45,7 @@ export default function DocumentUploadCard({ onUpload, disabled }: Props) {
         ref={ref}
         type="file"
         className="hidden"
-        accept=".pdf,.jpg,.jpeg,.png"
+        accept=".pdf,.jpg,.jpeg,.png,.webp"
         disabled={disabled}
         onChange={(e) => {
           const f = e.target.files?.[0];

@@ -5,6 +5,9 @@ import DocumentUpload from "./DocumentUpload";
 import ExtractedSummary from "./ExtractedSummary";
 import DetailDrawer from "./DetailDrawer";
 
+
+
+
 export type CreditStatus = "Lancar" | "Tidak Lancar" | "Perhatian" | "Unknown";
 
 export type DocumentType = "SLIK OJK" | "Slip Gaji" | "Lainnya";
@@ -26,36 +29,100 @@ export type ExtractedDocument = {
 
 type ProcessState = "idle" | "uploading" | "processing" | "done" | "error";
 
-function mockExtract(fileName: string): ExtractedDocument {
-  const sampleNames = ["Andi Pratama", "Siti Nur Aulia", "Budi Santoso", "Nadia Putri"];
-  const sampleStatus: CreditStatus[] = ["Lancar", "Tidak Lancar", "Perhatian"];
-  const name = sampleNames[Math.floor(Math.random() * sampleNames.length)];
-  const status = sampleStatus[Math.floor(Math.random() * sampleStatus.length)];
+type ScanApiResponse = {
+  success: boolean;
+  document_type: "SLIK" | "SALARY_SLIP" | string;
+  scanned_data: any;
+  scanned_at: string;
+  is_editable: boolean;
+  error?: string;
+};
+
+function mapScanToExtracted(api: ScanApiResponse, fileName: string): ExtractedDocument {
+  const d = api?.scanned_data ?? {};
+
+  const fullName = d.full_name || d.fullName || d.name || "Unknown";
+
+  const docType: DocumentType =
+    api.document_type === "SLIK"
+      ? "SLIK OJK"
+      : api.document_type === "SALARY_SLIP"
+        ? "Slip Gaji"
+        : "Lainnya";
+
+  const creditStatusRaw = d.credit_status;
+  const creditStatus: CreditStatus =
+    creditStatusRaw === "Lancar" || creditStatusRaw === "Tidak Lancar" || creditStatusRaw === "Perhatian"
+      ? creditStatusRaw
+      : "Unknown";
+
+  const netIncome = typeof d.net_income === "number" ? d.net_income : undefined;
+  const incomeRange =
+    typeof netIncome === "number"
+      ? netIncome >= 10_000_000
+        ? "≥ Rp 10 jt"
+        : netIncome >= 5_000_000
+          ? "Rp 5–10 jt"
+          : "< Rp 5 jt"
+      : undefined;
+
+  const employmentStatus = d.employment_status || d.employmentStatus;
 
   return {
     id: crypto.randomUUID(),
     fileName,
-    extractedAt: new Date().toISOString(),
-    fullName: name,
-    documentType: "SLIK OJK",
-    creditStatus: status,
-    employmentStatus: "Karyawan",
-    incomeRange: "Rp 5–10 jt",
-    notes: "Hasil PoC (mock). Dokumen perlu verifikasi human sebelum dipakai keputusan final.",
-    rawConfidence: 0.86,
+    extractedAt: api?.scanned_at || new Date().toISOString(),
+    fullName,
+    documentType: docType,
+    creditStatus: docType === "SLIK OJK" ? creditStatus : "Unknown",
+    employmentStatus,
+    incomeRange,
+    notes: api?.success
+      ? "Hasil PoC. Tetap perlu verifikasi human sebelum dipakai untuk keputusan final."
+      : api?.error || "Gagal memproses dokumen.",
+    rawConfidence:
+      typeof d.confidence === "number"
+        ? d.confidence
+        : typeof (api as any).confidence === "number"
+          ? (api as any).confidence
+          : undefined,
   };
 }
 
-export default function DocumentCard({
-  onAnalyzed,
-}: {
+
+type VehicleScanWrapped = {
+  success: boolean;
+  document_type: "VEHICLE" | string;
+  scanned_data: any;
+  scanned_at?: string;
+  is_editable?: boolean;
+  error?: string;
+};
+
+type VehicleScanRaw = {
+  vehicle_identification: any;
+  physical_condition: any;
+  confidence?: number;
+  images_processed?: number;
+  scanned_at?: string;
+  error?: string;
+};
+
+type VehicleScanApiResponse = VehicleScanWrapped | VehicleScanRaw;
+
+type DocumentCardProps = {
   onAnalyzed?: (doc: ExtractedDocument | null) => void;
-}) {
+};
+
+export default function DocumentCard({ onAnalyzed }: DocumentCardProps) {
   const [state, setState] = useState<ProcessState>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [doc, setDoc] = useState<ExtractedDocument | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [selectedDocType, setSelectedDocType] = useState<DocumentType>("SLIK OJK");
+  const [useMock, setUseMock] = useState(true);
+
 
   const statusLabel = useMemo(() => {
     switch (state) {
@@ -74,27 +141,64 @@ export default function DocumentCard({
     }
   }, [state]);
 
-  async function handleUpload(file: File) {
-    setErrorMsg(null);
-    setState("uploading");
+async function handleUpload(file: File) {
+  setErrorMsg(null);
+  setState("uploading");
 
-    try {
-      // mock upload delay
-      await new Promise((r) => setTimeout(r, 600));
-      setState("processing");
+  try {
+    const form = new FormData();
+    form.append("document", file);
 
-      // mock extraction delay
-      await new Promise((r) => setTimeout(r, 900));
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
-      const extracted = mockExtract(file.name);
-      setDoc(extracted);
-      setState("done");
-      onAnalyzed?.(extracted);
-    } catch (e) {
-      setState("error");
-      setErrorMsg(e instanceof Error ? e.message : "Unknown error");
+    // hint buat mock mode (tanpa dropdown)
+    const lower = file.name.toLowerCase();
+    const typeHint =
+      lower.includes("gaji") || lower.includes("salary") || lower.includes("payslip") || lower.includes("slip")
+        ? "salary-slip"
+        : "slik";
+
+    const url = `${base}/api/scan/document${
+      useMock ? `?mock=true&type=${typeHint}` : ""
+    }`;
+
+    setState("processing");
+
+    const res = await fetch(url, { method: "POST", body: form });
+    const data = (await res.json()) as ScanApiResponse;
+
+    if (!res.ok || !data.success) {
+      throw new Error(data?.error || `Request failed (HTTP ${res.status})`);
     }
+
+    const extracted = mapScanToExtracted(data, file.name);
+    setDoc(extracted);
+    onAnalyzed?.(extracted);
+    setState("done");
+  } catch (e) {
+    setState("error");
+    setErrorMsg(e instanceof Error ? e.message : "Unknown error");
   }
+}
+
+
+function mapBackendToDoc(api: any, fileName: string): ExtractedDocument {
+  // karena aku belum lihat bentuk JSON result backend (mocknya gimana),
+  // aku buat fallback aman: taruh raw di notes
+  return {
+    id: api?.id || api?.scan_id || crypto.randomUUID(),
+    fileName,
+    extractedAt: new Date().toISOString(),
+    fullName: api?.fullName || api?.data?.fullName || "Unknown",
+    documentType: "SLIK OJK",
+    creditStatus: api?.creditStatus || "Unknown",
+    employmentStatus: api?.employmentStatus,
+    incomeRange: api?.incomeRange,
+    notes: api?.notes || `Raw result: ${JSON.stringify(api).slice(0, 500)}...`,
+    rawConfidence: api?.confidence ?? api?.rawConfidence ?? undefined,
+  };
+}
+
 
   function reset() {
     setDoc(null);
@@ -103,17 +207,44 @@ export default function DocumentCard({
     setState("idle");
   }
 
-  function reprocess() {
-    if (!doc) return;
-    // re-run mock quickly (simulate)
-    setState("processing");
-    setTimeout(() => {
-      const extracted = mockExtract(doc.fileName);
-      setDoc(extracted);
-      setState("done");
-      onAnalyzed?.(extracted);
-    }, 700);
+async function reprocess() {
+  if (!doc) return;
+
+  setErrorMsg(null);
+
+  if (!useMock) {
+    setState("error");
+    setErrorMsg("Untuk reprocess non-mock, silakan upload ulang file (PoC belum menyimpan file).");
+    return;
   }
+
+  // mock mode: cukup refresh timestamp (simulasi rerun)
+  setState("processing");
+  setTimeout(() => {
+    const updated = doc ? { ...doc, extractedAt: new Date().toISOString(), notes: "Re-process (mock) dijalankan ulang." } : null;
+    setDoc(updated);
+    onAnalyzed?.(updated);
+    setState("done");
+  }, 500);
+}
+
+function normalizeVehicleScan(data: VehicleScanApiResponse): { ok: boolean; payload: any; error?: string } {
+  // Case A: wrapper
+  if ("success" in data) {
+    return {
+      ok: !!data.success,
+      payload: data.scanned_data,
+      error: data.error,
+    };
+  }
+
+  // Case B: raw (README style)
+  if ((data as any)?.vehicle_identification || (data as any)?.physical_condition) {
+    return { ok: true, payload: data };
+  }
+
+  return { ok: false, payload: null, error: (data as any)?.error || "Invalid vehicle scan response" };
+}
 
   return (
     <section className="rounded-2xl border bg-white p-5 shadow-sm">
@@ -121,8 +252,30 @@ export default function DocumentCard({
         <div>
           <h2 className="text-base font-extrabold">Document Analysis</h2>
           <p className="mt-1 text-sm text-gray-600">
-            Upload SLIK OJK → sistem ekstrak data → tampil ringkas + detail.
+            Upload dokumen → sistem ekstrak data → tampil ringkas + detail.
           </p>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {/* <select
+              value={selectedDocType}
+              onChange={(e) => setSelectedDocType(e.target.value as DocumentType)}
+              className="rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700"
+              disabled={state === "uploading" || state === "processing"}
+            >
+              <option value="SLIK OJK">SLIK OJK</option>
+              <option value="Slip Gaji">Slip Gaji</option>
+            </select> */}
+
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={useMock}
+                onChange={(e) => setUseMock(e.target.checked)}
+                disabled={state === "uploading" || state === "processing"}
+              />
+              Use mock
+            </label>
+          </div>
         </div>
 
         <button
@@ -134,6 +287,7 @@ export default function DocumentCard({
           Detail
         </button>
       </div>
+
 
       <div className="mt-4 space-y-4">
         <div className="rounded-xl border bg-gray-50 px-4 py-3 text-sm text-gray-700">

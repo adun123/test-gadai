@@ -9,59 +9,24 @@ import VehicleCard from "@/components/dashboard/VehicleAssessment/VehicleCard";
 import PricingCard from "@/components/dashboard/ValuationPricing/PricingCard";
 import ExportButton from "@/components/dashboard/ExportButton";
 
+type VehicleCondition =
+  | "Mulus (Grade A)"
+  | "Normal (Grade B)"
+  | "Banyak Lecet (Grade C)"
+  | "Perlu Perbaikan (Grade D)";
+
 type VehiclePayload = {
   brandModel?: string;
   year?: string;
-  physicalCondition?: any; // boleh rapihin nanti pakai VehicleCondition
+  physicalCondition?: VehicleCondition;
 };
 
-
-function SectionCard({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-extrabold">{title}</h2>
-          {description ? <p className="mt-1 text-sm text-gray-600">{description}</p> : null}
-        </div>
-
-        <button
-          type="button"
-          className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-        >
-          Detail
-        </button>
-      </div>
-
-      <div className="mt-4">{children}</div>
-    </section>
-  );
-}
-
-function SkeletonBlock({ lines = 3 }: { lines?: number }) {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: lines }).map((_, i) => (
-        <div key={i} className="h-4 w-full rounded bg-gray-100" />
-      ))}
-      <div className="h-10 w-full rounded-xl bg-gray-100" />
-    </div>
-  );
-}
-
 export default function DashboardPage() {
-  const [vehicleReady, setVehicleReady] = useState(false);
-  const [vehicle, setVehicle] = useState<VehiclePayload>({});
   const [document, setDocument] = useState<any>(null);
   const [pricing, setPricing] = useState<any>(null);
+  const [vehicle, setVehicle] = useState<VehiclePayload | null>(null);
+
+  const vehicleReady = !!vehicle?.brandModel;
 
   const exportData = {
     document,
@@ -81,16 +46,16 @@ export default function DashboardPage() {
 
         <VehicleCard
           onAnalyzed={(v) => {
-            setVehicleReady(!!v?.brandModel);
-            setVehicle(v || {});
+            const normalized: VehiclePayload = {
+              brandModel: (v?.brandModel || "").trim(),
+              year: (v?.year || "").toString().trim(),
+              physicalCondition: v?.physicalCondition,
+            };
+            setVehicle(normalized);
           }}
         />
 
-        <PricingCard
-          vehicleReady={vehicleReady}
-          vehicle={vehicle}
-          onPricingCalculated={setPricing}
-        />
+        <PricingCard vehicleReady={vehicleReady} vehicle={vehicle ?? undefined} onPricingCalculated={setPricing} />
       </DashboardGrid>
 
       <ExportButton data={exportData} disabled={!vehicleReady && !document} />

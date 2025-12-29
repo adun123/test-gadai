@@ -37,14 +37,14 @@ Return the data in the following JSON structure:
   "extraction_notes": "any issues or observations during extraction"
 }`;
 
-async function extractDocumentData(imageBuffer, documentType = null) {
+async function extractDocumentData(imageBuffer, documentType = null, mimeType = 'image/jpeg') {
   try {
     const model = getModel();
 
     const imagePart = {
       inlineData: {
         data: imageBuffer.toString('base64'),
-        mimeType: 'image/jpeg'
+        mimeType
       }
     };
 
@@ -57,9 +57,7 @@ async function extractDocumentData(imageBuffer, documentType = null) {
     const text = response.text();
 
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
+    if (jsonMatch) return JSON.parse(jsonMatch[0]);
 
     return {
       document_type: 'UNKNOWN',
@@ -71,6 +69,7 @@ async function extractDocumentData(imageBuffer, documentType = null) {
     throw new Error(`Document extraction failed: ${error.message}`);
   }
 }
+
 
 async function processMultipleDocuments(documents) {
   const results = {
