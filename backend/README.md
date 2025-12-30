@@ -37,11 +37,16 @@ Content-Type: multipart/form-data
     "estimated_year": "2003-2007"
   },
   "physical_condition": {
-    "overall_grade": "Poor",
     "defects": [
-      "Paint fading on front panel (Moderate)",
-      "Scratches on side body (Minor)"
+      { "description": "Paint fading on front panel", "severity": "Moderate" },
+      { "description": "Scratches on side body", "severity": "Minor" }
     ]
+  },
+  "conditionScore": {
+    "final_score": 0.93,
+    "defect_count": 2,
+    "base_score": 1.0,
+    "deduction": 0.07
   },
   "confidence": 0.9,
   "images_processed": 4,
@@ -90,16 +95,16 @@ Content-Type: application/json
 **Request Body:**
 ```json
 {
-  "vehicle_identification": {
-    "make": "Yamaha",
-    "model": "Mio",
-    "year": 2005
-  },
-  "physical_condition": {
-    "overall_grade": "Poor",
-    "defects": ["Paint fading (Moderate)", "Rust (Minor)"]
-  },
-  "province": "DKI Jakarta"
+  "brand": "Yamaha",
+  "model": "Mio",
+  "year": 2005,
+  "province": "DKI Jakarta",
+  "conditionScore": {
+    "final_score": 0.93,
+    "defect_count": 2,
+    "base_score": 1.0,
+    "deduction": 0.07
+  }
 }
 ```
 
@@ -116,9 +121,9 @@ Content-Type: application/json
 **Request Body:**
 ```json
 {
-  "appraisal_value": 5000000,
-  "loan_amount": 5000000,
-  "tenor_days": 30
+  "assetValue": 15000000,
+  "loanAmount": 5000000,
+  "tenor": 30
 }
 ```
 
@@ -128,20 +133,23 @@ Content-Type: application/json
   "products": {
     "regular": {
       "product": { "type": "REGULAR", "name": "Gadai Kendaraan Reguler" },
-      "max_loan_amount": 5000000,
-      "sewa_modal": { "periods": 2, "total_rate": 2.4, "sewa_modal_amount": 120000 },
-      "total_repayment": 5120000,
-      "schedule": { "start_date": "2025-12-25", "due_date": "2026-01-24" }
+      "approvedLoanAmount": 5000000,
+      "sewaModal": { "periods": 2, "rate": 0.024, "amount": 120000 },
+      "adminFee": 50000,
+      "totalRepayment": 5170000,
+      "schedule": { "startDate": "2025-12-25", "dueDate": "2026-01-24" }
     },
     "daily": {
       "product": { "type": "DAILY", "name": "Gadai Kendaraan Harian" },
-      "max_loan_amount": 5000000,
-      "sewa_modal": { "days": 30, "total_rate": 2.7, "sewa_modal_amount": 135000 },
-      "total_repayment": 5135000,
-      "schedule": { "start_date": "2025-12-25", "due_date": "2026-01-24" }
-    },
-    "recommendation": "REGULAR"
-  }
+      "approvedLoanAmount": 5000000,
+      "sewaModal": { "days": 30, "rate": 0.027, "amount": 135000 },
+      "adminFee": 50000,
+      "totalRepayment": 5185000,
+      "schedule": { "startDate": "2025-12-25", "dueDate": "2026-01-24" }
+    }
+  },
+  "recommendation": "REGULAR",
+  "reason": "Gadai Reguler lebih hemat Rp 15.000"
 }
 ```
 
@@ -156,10 +164,29 @@ GET /health
 
 ## Pawn Products
 
-| Product | Tenor | Rate |
-|---------|-------|------|
-| Gadai Reguler | 1-120 days | 1.2% per 15 days |
-| Gadai Harian | 1-60 days | 0.09% per day |
+| Product | Tenor | Rate | Min Rate | Max Loan | Admin Fee |
+|---------|-------|------|----------|----------|----------|
+| Gadai Reguler | 1-120 days | 1.2% per 15 days | 1% | Unlimited | Rp 50,000 |
+| Gadai Harian | 1-60 days | 0.09% per day | 0.09% | Rp 20,000,000 | Rp 50,000 |
+
+## Condition Scoring
+
+| Defect Severity | Deduction |
+|-----------------|----------|
+| Minor | -2% |
+| Moderate | -5% |
+| Major | -10% |
+| Severe | -15% |
+
+**Safeguards:** Max deduction 50%, Min score 30%
+
+## Calculation Constants
+
+| Constant | Value |
+|----------|-------|
+| LTV (Loan to Value) | 75% |
+| Depreciation Rate | 0.5% per month |
+| Admin Fee | Rp 50,000 |
 
 ## Mock Mode
 
@@ -177,13 +204,13 @@ curl.exe http://localhost:5000/health
 curl.exe -X POST "http://localhost:5000/api/scan/vehicle?mock=true" -F "images=@photo.jpg"
 
 # 3. Calculate pricing
-curl.exe -X POST http://localhost:5000/api/calculate/pricing -H "Content-Type: application/json" -d "{\"vehicle_identification\":{\"make\":\"Honda\",\"model\":\"Beat\",\"year\":2022},\"physical_condition\":{\"overall_grade\":\"Good\"},\"province\":\"Jawa Barat\"}"
+curl.exe -X POST http://localhost:5000/api/calculate/pricing -H "Content-Type: application/json" -d "{\"brand\":\"Honda\",\"model\":\"Beat\",\"year\":2022,\"province\":\"Jawa Barat\",\"conditionScore\":{\"final_score\":0.91}}"
 
 # 4. Calculate pawn (30 days)
-curl.exe -X POST http://localhost:5000/api/calculate/pawn -H "Content-Type: application/json" -d "{\"appraisal_value\":10000000,\"tenor_days\":30}"
+curl.exe -X POST http://localhost:5000/api/calculate/pawn -H "Content-Type: application/json" -d "{\"assetValue\":10000000,\"loanAmount\":5000000,\"tenor\":30}"
 
 # 5. Calculate pawn (60 days)
-curl.exe -X POST http://localhost:5000/api/calculate/pawn -H "Content-Type: application/json" -d "{\"appraisal_value\":10000000,\"tenor_days\":60}"
+curl.exe -X POST http://localhost:5000/api/calculate/pawn -H "Content-Type: application/json" -d "{\"assetValue\":10000000,\"loanAmount\":5000000,\"tenor\":60}"
 ```
 
 
@@ -209,17 +236,16 @@ const formData = new FormData();
 files.forEach(f => formData.append('images', f));
 const scanResult = await fetch('/api/scan/vehicle', { method: 'POST', body: formData }).then(r => r.json());
 
-// 2. User edits the data, then calculate pricing
+// 2. Calculate pricing with condition score from scan result
 const pricingResult = await fetch('/api/calculate/pricing', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    vehicle_identification: { make: 'Yamaha', model: 'Mio', year: 2005 },
-    physical_condition: { 
-      overall_grade: 'Poor',
-      defects: [...scanResult.physical_condition.defects, 'New defect added by user (Minor)']
-    },
-    province: 'DKI Jakarta'
+    brand: scanResult.vehicle_identification.make,
+    model: scanResult.vehicle_identification.model,
+    year: 2020,
+    province: 'DKI Jakarta',
+    conditionScore: scanResult.conditionScore
   })
 }).then(r => r.json());
 
@@ -227,7 +253,11 @@ const pricingResult = await fetch('/api/calculate/pricing', {
 const pawnResult = await fetch('/api/calculate/pawn', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ appraisal_value: pricingResult.appraisal_value, tenor_days: 30 })
+  body: JSON.stringify({
+    assetValue: pricingResult.appraisalValue,
+    loanAmount: 5000000,
+    tenor: 30
+  })
 }).then(r => r.json());
 ```
 
