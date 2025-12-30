@@ -23,59 +23,46 @@ const pricingValidation = [
   body('province').optional().isString()
 ];
 
+// helper sederhana: ambil severity dari string defects "Rust (Minor)"
+function parseSeverity(defectStr = "") {
+  const m = String(defectStr).match(/\((Minor|Moderate|Major|Severe)\)/i);
+  return m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : "Moderate";
+}
+
 router.post('/pricing', pricingValidation, asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      errors: errors.array()
-    });
+    return res.status(400).json({ success: false, errors: errors.array() });
   }
 
   const { vehicle_identification, physical_condition, province } = req.body;
   const useMock = req.query.mock === 'true' || process.env.USE_MOCK === 'true';
+  const tenorDays = Number(req.body.tenor_days ?? 30);
 
-  const conditionScore = physical_condition 
-    ? calculateConditionScore(physical_condition)
-    : { final_score: 0.85, grade: 'Good', defect_count: 0 };
+  const conditionScore = physical_condition
+    ? calculateConditionScore({
+        overall_grade: physical_condition.overall_grade,
+        detected_defects: (physical_condition.defects || []).map((s) => ({ severity: parseSeverity(s) })),
+      })
+    : { final_score: 0.85, grade: 'Good', defect_count: 0, issue_count: 0 };
 
   const vehicleInfo = {
     make: vehicle_identification.make,
     model: vehicle_identification.model,
     year: vehicle_identification.year || new Date().getFullYear() - 2,
     vehicle_type: vehicle_identification.vehicle_type || 'Matic',
-    province: province || 'Indonesia'
+    province: province || 'Indonesia',
   };
 
-  let marketPriceResult;
-  if (useMock) {
-    marketPriceResult = {
-      base_price: 15000000,
-      search_confidence: 0.85,
-      price_range: { min: 13000000, max: 17000000 },
-      source: 'mock_data'
-    };
-  } else {
-    marketPriceResult = await searchMarketPrice(vehicleInfo);
-  }
+  const breakdown = await generatePricingBreakdown(
+    { make: vehicleInfo.make, model: vehicleInfo.model, year: vehicleInfo.year },
+    conditionScore,
+    vehicleInfo.province,
+    tenorDays
+  );
 
-  const assetValue = marketPriceResult.base_price;
-  const effectiveCollateralValue = calculateEffectiveCollateralValue(assetValue);
-  const appraisalValue = calculateAppraisalValue(effectiveCollateralValue);
-
-  const breakdown = generatePricingBreakdown({
-    make: vehicleInfo.make,
-    model: vehicleInfo.model,
-    year: vehicleInfo.year,
-    province: vehicleInfo.province
-  }, {
-    base_market_price: marketPriceResult.base_price,
-    condition_adjustment: conditionScore.final_score,
-    asset_value: assetValue,
-    effective_collateral_value: effectiveCollateralValue,
-    appraisal_value: appraisalValue,
-    price_range: marketPriceResult.price_range
-  });
+  const pricingBreak = breakdown.pricing_breakdown || {};
+  const coll = breakdown.collateral_calculation || {};
 
   res.json({
     success: true,
@@ -84,17 +71,19 @@ router.post('/pricing', pricingValidation, asyncHandler(async (req, res) => {
       vehicle: vehicleInfo,
       condition: conditionScore,
       pricing: {
-        market_price: marketPriceResult.base_price,
-        price_range: marketPriceResult.price_range,
-        search_confidence: marketPriceResult.search_confidence,
+        market_price: pricingBreak.base_market_price?.value ?? 0,
+        price_range: pricingBreak.base_market_price?.range ?? null,
+        price_confidence: pricingBreak.base_market_price?.confidence ?? 'LOW',
+        data_points: pricingBreak.base_market_price?.data_points ?? 0,
         condition_adjustment: conditionScore.final_score,
-        effective_collateral_value: effectiveCollateralValue,
-        appraisal_value: appraisalValue
+        effective_collateral_value: coll.effective_collateral_value ?? 0,
+        appraisal_value: coll.appraisal_value ?? 0,
+        tenor_days: coll.tenor_days ?? tenorDays,
       },
-      breakdown: breakdown,
+      breakdown,
       calculated_at: new Date().toISOString(),
       is_editable: true,
-      editable_fields: ['appraisal_value', 'condition_adjustment']
+      editable_fields: ['appraisal_value', 'condition_adjustment'],
     },
     next_step: {
       action: 'CALCULATE_PAWN',
