@@ -1,11 +1,12 @@
 # Pegadaian AI Pawn Assessment System
 
 ## Overview
-An AI-powered digital pawn assessment application designed to streamline the initial pawn application process. This system enables pawnshop employees to upload photos of collateral items and obtain preliminary loan estimates using advanced AI analysis.
+An AI-powered digital pawn assessment application designed to streamline the initial pawn application process. This system enables pawnshop employees to upload photos of collateral items (vehicles) and obtain preliminary loan estimates using advanced AI analysis with Google Gemini.
 
-The application consists of two main pipelines:
-1. **Financial Validation Pipeline** - Validates customer financial documents (SLIK, salary slips)
-2. **Visual Appraiser Pipeline** - Analyzes collateral items through computer vision and market price estimation
+The application focuses on the **Vehicle Pawn Pipeline** which analyzes motorcycles through:
+1. **Vehicle Scanning** - AI-powered vehicle identification and defect detection
+2. **Market Price Estimation** - Real-time market price search using Google Search
+3. **Pawn Calculation** - Automatic loan calculation with Gadai Reguler & Gadai Harian options
 
 ---
 
@@ -15,25 +16,32 @@ Main objectives of this application:
 - Reduce waiting time and appraisal workload at outlets
 - Support pawnshop employees with AI-based decision support systems
 - Maintain consistency and quality in collateral assessment
-- Automate defect detection and grade evaluation
+- Automate defect detection and condition scoring
 
 ---
 
 ## Features
 
-### Pipeline A: Financial Validation
-- NIK verification and data matching
-- OCR text extraction from SLIK and salary documents
-- Credit score calculation based on collectibility and DBR (Debt to Income Ratio)
-- Automatic risk assessment (LOW_RISK, HIGH_RISK, REJECT)
+### Vehicle Pawn Assessment
+- **Vehicle Scanning**: AI-powered identification of brand, model, year from photos
+- **Defect Detection**: Automatic detection of damage/defects from uploaded images
+- **Condition Scoring**: Score calculated from 100% minus defect deductions (min 30%)
+- **Market Price Search**: Real-time price estimation via Google Search grounding
+- **Dual Product Options**: Gadai Reguler (1-120 days) and Gadai Harian (1-60 days)
+- **Loan Calculation**: Automatic calculation with LTV, depreciation, and fees
 
-### Pipeline B: Visual Appraiser
-- Multi-category object classification (Vehicles, Electronics, Jewelry, Luxury Fashion)
-- AI-powered defect detection from photos
-- Manual defect addition by employees (optional)
-- Automatic grade evaluation (A, B, C, D) based on total defects
-- Market price estimation with regional context
-- Loan offer calculation based on grade and market price
+### Condition Scoring System
+
+| Defect Severity | Deduction | Example |
+|-----------------|-----------|---------|
+| Minor | -2% | Small scratches, light scuffs |
+| Moderate | -5% | Small dents, peeling paint |
+| Major | -10% | Large dents, cracked body |
+| Severe | -15% | Broken parts, leaks, non-functional |
+
+**Safeguards:**
+- Maximum total deduction: 50%
+- Minimum condition score: 30%
 
 ---
 
@@ -128,19 +136,28 @@ Frontend runs at `http://localhost:3000`
 
 ## API Endpoints
 
-### 1. Financial Validation
+### 1. Vehicle Scan
 ```
-POST /api/financial-validation/process
+POST /api/scan/vehicle
 ```
-- Upload SLIK and salary slip documents
-- Get risk assessment and credit score
+- Upload vehicle photos (1-4 images)
+- Returns: brand, model, year, defects, condition score
 
-### 2. Visual Appraiser
+### 2. Pricing Engine
 ```
-POST /api/visual-appraiser/assess
+POST /api/calculate/pricing
 ```
-- Upload collateral item photos
-- Get AI assessment, grade, and loan offer
+- Get market price estimation
+- Input: brand, model, year, province, condition score
+- Returns: market price, adjusted value, max loan amount
+
+### 3. Pawn Decision Engine
+```
+POST /api/calculate/pawn
+```
+- Calculate loan options
+- Input: asset value, loan amount, tenor
+- Returns: Gadai Reguler vs Gadai Harian comparison
 
 For detailed API documentation, see [backend/README.md](backend/README.md)
 
@@ -148,26 +165,49 @@ For detailed API documentation, see [backend/README.md](backend/README.md)
 
 ## Usage Flow
 
-1. **Employee Input**: Pawnshop employee enters customer data (NIK, name, income, loan amount)
-2. **Document Upload**: Upload SLIK and salary slip documents
-3. **Financial Validation**: System validates documents and calculates risk score
-4. **Collateral Photos**: Upload photos of collateral item (vehicles, electronics, jewelry)
-5. **Manual Inspection** (Optional): Employee adds defects found during physical inspection
-6. **AI Assessment**: AI analyzes photos, detects defects, estimates market price
-7. **Grade Calculation**: System calculates final grade based on total defects
-8. **Loan Offer**: System generates loan offer based on grade and market price
-9. **Decision**: APPROVED, REJECTED, or MANUAL_REVIEW
+1. **Upload Photos**: Employee uploads 1-4 photos of the motorcycle
+2. **AI Scanning**: System identifies brand, model, year and detects defects
+3. **Condition Score**: Score calculated based on defects (100% - deductions, min 30%)
+4. **Market Price**: AI searches real-time market prices via Google Search
+5. **Value Adjustment**: Price adjusted by condition score and depreciation
+6. **Max Loan**: LTV 75% applied to determine maximum loan amount
+7. **User Selection**: Customer chooses loan amount and tenor
+8. **Product Comparison**: System compares Gadai Reguler vs Gadai Harian
+9. **Recommendation**: Display recommended product with lower total cost
 
 ---
 
-## Grade System
+## Pawn Products
 
-| Grade | Condition | Defects | Loan Percentage |
-|-------|-----------|---------|----------------|
-| A | Excellent | 0 defects | 70% of market price |
-| B | Good | 1-3 minor defects | 60% of market price |
-| C | Fair | 4-6 defects | 40% of market price |
-| D | Poor | 7+ defects or critical damage | REJECTED |
+### Gadai Reguler
+| Parameter | Value |
+|-----------|-------|
+| Tenor | 1-120 days |
+| Interest Rate | 1.2% per 15 days |
+| Minimum Interest | 1% |
+| Max Loan | Unlimited |
+| Admin Fee | Rp 50,000 |
+
+### Gadai Harian
+| Parameter | Value |
+|-----------|-------|
+| Tenor | 1-60 days |
+| Interest Rate | 0.09% per day |
+| Minimum Interest | 0.09% |
+| Max Loan | Rp 20,000,000 |
+| Admin Fee | Rp 50,000 |
+
+---
+
+## Calculation Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| LTV (Loan to Value) | 75% | Maximum loan percentage |
+| Depreciation Rate | 0.5% per month | Short-term value decline |
+| Admin Fee | Rp 50,000 | Fixed administration cost |
+| Max Deduction | 50% | Maximum condition deduction |
+| Min Score | 30% | Minimum condition score |
 
 ---
 
@@ -184,24 +224,33 @@ For detailed API documentation, see [backend/README.md](backend/README.md)
 
 ## Testing
 
-Test the backend API without frontend:
+Test the backend API:
 
 ```bash
-# Test financial validation (mock mode)
-curl -X POST http://localhost:5000/api/financial-validation/process \
-  -F "region=Jakarta" \
-  -F "nik=3174012501950001" \
-  -F "full_name=John Doe" \
-  -F "monthly_income=8000000" \
-  -F "loan_amount=20000000" \
-  -F "mock_mode=true"
-
-# Test visual appraiser with real photos
-curl -X POST http://localhost:5000/api/visual-appraiser/assess \
-  -F "region=Jakarta" \
-  -F "risk_score=LOW_RISK" \
+# Test vehicle scan with photos
+curl -X POST http://localhost:5000/api/scan/vehicle \
   -F "images=@/path/to/photo1.jpg" \
   -F "images=@/path/to/photo2.jpg"
+
+# Test pricing calculation
+curl -X POST http://localhost:5000/api/calculate/pricing \
+  -H "Content-Type: application/json" \
+  -d '{
+    "brand": "Honda",
+    "model": "Vario 125",
+    "year": 2020,
+    "province": "DKI Jakarta",
+    "conditionScore": {"final_score": 0.91}
+  }'
+
+# Test pawn calculation
+curl -X POST http://localhost:5000/api/calculate/pawn \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assetValue": 15000000,
+    "loanAmount": 5000000,
+    "tenor": 30
+  }'
 ```
 
 ---
@@ -209,24 +258,24 @@ curl -X POST http://localhost:5000/api/visual-appraiser/assess \
 ## Development Status
 
 **Completed:**
-- Backend API with two pipelines
-- Financial validation and credit scoring
-- Visual AI assessment with Gemini
-- Automatic defect detection
-- Manual defect addition feature
-- Grade calculation and loan offer
-- Security middleware implementation
-- API documentation
+- ✅ Backend API with Express.js
+- ✅ Vehicle scanning with Gemini AI
+- ✅ Automatic defect detection
+- ✅ Condition scoring (defects-based)
+- ✅ Market price estimation with Google Search
+- ✅ Pawn calculation engine (Reguler & Harian)
+- ✅ Security middleware implementation
+- ✅ Unit tests with Jest
+- ✅ API documentation
 
 **In Progress:**
-- Frontend UI development
-- Integration testing
-- User authentication
+- 🔄 Frontend UI development
+- 🔄 Integration testing
 
 **Planned:**
-- Database integration
-- Real-time market price API
-- Admin dashboard
-- Production deployment
+- 📋 Database integration
+- 📋 User authentication
+- 📋 Admin dashboard
+- 📋 Production deployment
 
 ---
