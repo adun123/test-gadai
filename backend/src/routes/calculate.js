@@ -3,7 +3,7 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const { searchMarketPrice, calculateEffectiveCollateralValue, calculateAppraisalValue, generatePricingBreakdown } = require('../services/pricingEngineService');
 const { calculateConditionScore } = require('../services/vehicleScanService');
-const { calculatePawnLoan, comparePawnProducts } = require('../services/pawnDecisionEngineService');
+const { comparePawnProducts } = require('../services/pawnDecisionEngineService');
 const { summarizeDocuments } = require('../services/documentScanService');
 const { asyncHandler } = require('../middleware/errorHandler');
 
@@ -19,7 +19,7 @@ const pricingValidation = [
   body('vehicle_identification.make').notEmpty().withMessage('Vehicle make is required'),
   body('vehicle_identification.model').notEmpty().withMessage('Vehicle model is required'),
   body('vehicle_identification.year').optional().isInt({ min: 1990, max: new Date().getFullYear() + 1 }),
-  body('physical_condition.overall_grade').optional().isIn(['Excellent', 'Good', 'Fair', 'Poor']),
+  body('physical_condition.defects').optional().isArray(),
   body('province').optional().isString()
 ];
 
@@ -37,7 +37,7 @@ router.post('/pricing', pricingValidation, asyncHandler(async (req, res) => {
 
   const conditionScore = physical_condition 
     ? calculateConditionScore(physical_condition)
-    : { final_score: 0.85, grade: 'Good', defect_count: 0 };
+    : { final_score: 1.0, defect_count: 0, base_score: 1.0, deduction: 0 };
 
   const vehicleInfo = {
     make: vehicle_identification.make,
@@ -199,7 +199,7 @@ router.post('/full-assessment', fullAssessmentValidation, asyncHandler(async (re
 
   const conditionScore = physical_condition 
     ? calculateConditionScore(physical_condition)
-    : { final_score: 0.85, grade: 'Good', defect_count: 0 };
+    : { final_score: 1.0, defect_count: 0, base_score: 1.0, deduction: 0 };
 
   const vehicleInfo = {
     make: vehicle_identification.make,

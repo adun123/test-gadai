@@ -168,6 +168,25 @@ Add `?mock=true` for testing without AI:
 POST /api/scan/vehicle?mock=true
 ```
 
+## cURl Example
+```
+# 1. Check server
+curl.exe http://localhost:5000/health
+
+# 2. Scan vehicle (mock)
+curl.exe -X POST "http://localhost:5000/api/scan/vehicle?mock=true" -F "images=@photo.jpg"
+
+# 3. Calculate pricing
+curl.exe -X POST http://localhost:5000/api/calculate/pricing -H "Content-Type: application/json" -d "{\"vehicle_identification\":{\"make\":\"Honda\",\"model\":\"Beat\",\"year\":2022},\"physical_condition\":{\"overall_grade\":\"Good\"},\"province\":\"Jawa Barat\"}"
+
+# 4. Calculate pawn (30 days)
+curl.exe -X POST http://localhost:5000/api/calculate/pawn -H "Content-Type: application/json" -d "{\"appraisal_value\":10000000,\"tenor_days\":30}"
+
+# 5. Calculate pawn (60 days)
+curl.exe -X POST http://localhost:5000/api/calculate/pawn -H "Content-Type: application/json" -d "{\"appraisal_value\":10000000,\"tenor_days\":60}"
+```
+
+
 ## Error Response
 
 ```json
