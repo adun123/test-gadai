@@ -70,36 +70,46 @@ function calculateDueDate(startDate, tenorDays) {
   };
 }
 
-function calculatePawnLoan(appraisalValue, productType, tenorDays, startDate = new Date()) {
+function calculatePawnLoan(appraisalValue, requestedLoanAmount, productType, tenorDays, startDate = new Date()) {
   const product = PAWN_PRODUCTS[productType];
-  if (!product) {
-    throw new Error(`Invalid product type: ${productType}`);
-  }
+  if (!product) throw new Error(`Invalid product type: ${productType}`);
 
   if (tenorDays < product.min_tenor_days || tenorDays > product.max_tenor_days) {
-    throw new Error(`Tenor must be between ${product.min_tenor_days} and ${product.max_tenor_days} days for ${product.name}`);
+    throw new Error(
+      `Tenor must be between ${product.min_tenor_days} and ${product.max_tenor_days} days for ${product.name}`
+    );
   }
 
+  // Batas maksimal dari appraisal (collateral)
   let maxLoanAmount = appraisalValue;
   if (product.max_loan && maxLoanAmount > product.max_loan) {
     maxLoanAmount = product.max_loan;
   }
 
+  // Loan yang diminta user (default = appraisal)
+  const requested = requestedLoanAmount ?? appraisalValue;
+
+  // Loan disetujui = min(requested, max)
+  const approvedLoanAmount = Math.min(requested, maxLoanAmount);
+
+  // sewa modal harus dihitung dari approved loan, bukan max loan
   const sewaModal = productType === 'REGULAR'
-    ? calculateSewaModalRegular(maxLoanAmount, tenorDays)
-    : calculateSewaModalDaily(maxLoanAmount, tenorDays);
+    ? calculateSewaModalRegular(approvedLoanAmount, tenorDays)
+    : calculateSewaModalDaily(approvedLoanAmount, tenorDays);
 
   const dueDate = calculateDueDate(startDate, tenorDays);
 
-  const totalRepayment = maxLoanAmount + sewaModal.sewa_modal_amount + ADMIN_FEE;
+  const totalRepayment = approvedLoanAmount + sewaModal.sewa_modal_amount + ADMIN_FEE;
 
   return {
-    product: {
-      type: productType,
-      name: product.name
-    },
+    product: { type: productType, name: product.name },
     appraisal_value: appraisalValue,
+
+    // ✅ bedakan semua angka
     max_loan_amount: maxLoanAmount,
+    requested_loan_amount: requested,
+    approved_loan_amount: approvedLoanAmount,
+
     sewa_modal: sewaModal,
     admin_fee: ADMIN_FEE,
     total_repayment: totalRepayment,
@@ -107,15 +117,15 @@ function calculatePawnLoan(appraisalValue, productType, tenorDays, startDate = n
   };
 }
 
+
 function comparePawnProducts(appraisalValue, loanAmount, tenorDays, startDate = new Date()) {
   const results = {};
-  
-  const requestedLoan = loanAmount || appraisalValue;
+  const requestedLoan = loanAmount ?? appraisalValue;
 
+  // REGULAR
   if (tenorDays <= PAWN_PRODUCTS.REGULAR.max_tenor_days) {
     try {
-      results.regular = calculatePawnLoan(requestedLoan, 'REGULAR', tenorDays, startDate);
-      results.regular.appraisal_value = appraisalValue;
+      results.regular = calculatePawnLoan(appraisalValue, requestedLoan, 'REGULAR', tenorDays, startDate);
     } catch (e) {
       results.regular = { available: false, reason: e.message };
     }
@@ -123,32 +133,25 @@ function comparePawnProducts(appraisalValue, loanAmount, tenorDays, startDate = 
     results.regular = { available: false, reason: `Tenor exceeds maximum ${PAWN_PRODUCTS.REGULAR.max_tenor_days} days` };
   }
 
-  if (tenorDays <= PAWN_PRODUCTS.DAILY.max_tenor_days && requestedLoan <= (PAWN_PRODUCTS.DAILY.max_loan || Infinity)) {
+  // DAILY
+  if (tenorDays <= PAWN_PRODUCTS.DAILY.max_tenor_days) {
     try {
-      results.daily = calculatePawnLoan(requestedLoan, 'DAILY', tenorDays, startDate);
-      results.daily.appraisal_value = appraisalValue;
+      results.daily = calculatePawnLoan(appraisalValue, requestedLoan, 'DAILY', tenorDays, startDate);
     } catch (e) {
       results.daily = { available: false, reason: e.message };
     }
   } else {
-    let reason = '';
-    if (tenorDays > PAWN_PRODUCTS.DAILY.max_tenor_days) {
-      reason = `Tenor exceeds maximum ${PAWN_PRODUCTS.DAILY.max_tenor_days} days`;
-    } else if (requestedLoan > PAWN_PRODUCTS.DAILY.max_loan) {
-      reason = `Loan amount exceeds maximum Rp${PAWN_PRODUCTS.DAILY.max_loan.toLocaleString('id-ID')}`;
-    }
-    results.daily = { available: false, reason };
+    results.daily = { available: false, reason: `Tenor exceeds maximum ${PAWN_PRODUCTS.DAILY.max_tenor_days} days` };
   }
 
-  if (results.regular.total_repayment && results.daily.total_repayment) {
+  // recommendation
+  if (results.regular?.total_repayment && results.daily?.total_repayment) {
     results.recommendation = results.regular.total_repayment < results.daily.total_repayment ? 'REGULAR' : 'DAILY';
-    results.recommendation_reason = results.recommendation === 'REGULAR'
-      ? 'Lower total repayment amount'
-      : 'Lower total repayment amount with daily product';
-  } else if (results.regular.total_repayment) {
+    results.recommendation_reason = 'Lower total repayment amount';
+  } else if (results.regular?.total_repayment) {
     results.recommendation = 'REGULAR';
     results.recommendation_reason = 'Daily product not available for this configuration';
-  } else if (results.daily.total_repayment) {
+  } else if (results.daily?.total_repayment) {
     results.recommendation = 'DAILY';
     results.recommendation_reason = 'Regular product not available for this configuration';
   }
@@ -156,12 +159,14 @@ function comparePawnProducts(appraisalValue, loanAmount, tenorDays, startDate = 
   return results;
 }
 
+
 function generatePawnSimulation(appraisalValue, productType, tenorOptions, startDate = new Date()) {
   const simulations = [];
 
   for (const tenor of tenorOptions) {
     try {
-      const calculation = calculatePawnLoan(appraisalValue, productType, tenor, startDate);
+      const calculation = calculatePawnLoan(appraisalValue, appraisalValue, productType, tenor, startDate);
+
       simulations.push({
         tenor_days: tenor,
         ...calculation,
@@ -187,9 +192,11 @@ function generatePawnSimulation(appraisalValue, productType, tenorOptions, start
 function generateFullPawnDecision(pricingResult, tenorDays, productType, startDate = new Date()) {
   const appraisalValue = pricingResult.collateral_calculation?.appraisal_value || pricingResult.appraisal_value;
 
-  const pawnCalculation = calculatePawnLoan(appraisalValue, productType, tenorDays, startDate);
+  const pawnCalculation = calculatePawnLoan(appraisalValue, appraisalValue, productType, tenorDays, startDate);
 
-  const comparison = comparePawnProducts(appraisalValue, tenorDays, startDate);
+
+ const comparison = comparePawnProducts(appraisalValue, null, tenorDays, startDate);
+
 
   return {
     vehicle_info: pricingResult.vehicle_info,
@@ -203,7 +210,7 @@ function generateFullPawnDecision(pricingResult, tenorDays, productType, startDa
     product_comparison: comparison,
     decision_summary: {
       max_disbursement: pawnCalculation.max_loan_amount,
-      total_cost: pawnCalculation.sewa_modal.sewa_modal_amount + pawnCalculation.admin_fee,
+      total_cost: pawnCalculation.sewa_modal.sewa_modal_amount,
       total_repayment: pawnCalculation.total_repayment,
       due_date: pawnCalculation.schedule.due_date,
       notes: [
