@@ -1,5 +1,6 @@
 "use client";
 
+import { FileText } from "lucide-react";
 import { useMemo, useState } from "react";
 import DocumentUpload from "./DocumentUpload";
 import ExtractedSummary from "./ExtractedSummary";
@@ -214,27 +215,32 @@ export default function DocumentCard() {
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-extrabold text-card-foreground">Document Analysis</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Upload dokumen → sistem ekstrak data → tampil ringkas + detail.</p>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
-                checked={useMock}
-                onChange={(e) => setUseMock(e.target.checked)}
-                disabled={anyBusy}
-              />
-              Use mock
-            </label>
+    <section className="rounded-2xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border bg-muted px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="text-primary">
+            <FileText className="h-5 w-5" />
           </div>
+          <div className="flex-1">
+            <h2 className="text-base font-extrabold text-card-foreground">Document Analysis</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Upload dokumen → sistem ekstrak data → tampil ringkas + detail.</p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs font-semibold text-foreground">
+            <input
+              type="checkbox"
+              checked={useMock}
+              onChange={(e) => setUseMock(e.target.checked)}
+              disabled={anyBusy}
+            />
+            Use mock
+          </label>
         </div>
       </div>
 
-      <div className="mt-4 space-y-4">
+      <div className="p-5 space-y-4">
         <div className="rounded-xl border border-border bg-muted px-4 py-3 text-sm text-foreground">
           <div className="flex items-center justify-between gap-3">
             <span className="font-semibold">{statusLabel}</span>

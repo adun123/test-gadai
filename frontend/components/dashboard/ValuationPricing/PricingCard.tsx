@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, Loader2 } from "lucide-react";
+import { generateAssessmentPDF } from "@/lib/pdf-generator";
 import PricingHeader from "./PricingHeader";
 import PricingGating from "./PricingGating";
 import PricingAlerts from "./PricingAlerts";
@@ -112,6 +114,79 @@ function addDays(date: Date, days: number) {
 
 function formatIDDate(d: Date) {
   return d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+// Export Section Component
+type ExportSectionProps = {
+  vehicle?: {
+    brandModel?: string;
+    year?: string;
+    physicalCondition?: string;
+  };
+  breakdown?: UiBreakdown | null;
+  pawnSim?: {
+    maxDisbursement?: number;
+    sewaModal?: number;
+    dueDate?: Date;
+  } | null;
+  location: string;
+  tenorDays: number;
+  product: PawnProduct;
+};
+
+function ExportSection({ vehicle, breakdown, pawnSim, location, tenorDays, product }: ExportSectionProps) {
+  const [loading, setLoading] = useState(false);
+
+  const handleExport = async () => {
+    try {
+      setLoading(true);
+
+      // Build export data with only non-empty values
+      const exportData = {
+        vehicle: vehicle?.brandModel ? vehicle : undefined,
+        pricing: breakdown ? {
+          basePrice: breakdown.basePrice,
+          adjustment: breakdown.adjustment,
+          assetValue: breakdown.assetValue,
+          confidence: breakdown.confidence,
+          confidenceLabel: breakdown.confidenceLabel,
+          appraisalValue: breakdown.appraisalValue,
+          effectiveCollateralValue: breakdown.effectiveCollateralValue,
+          location: location || undefined,
+          tenorDays,
+          product,
+          ...(pawnSim?.maxDisbursement && { maxDisbursement: pawnSim.maxDisbursement }),
+          ...(pawnSim?.sewaModal && { sewaModal: pawnSim.sewaModal }),
+          ...(pawnSim?.dueDate && { dueDate: pawnSim.dueDate }),
+        } : undefined,
+      };
+
+      await generateAssessmentPDF(exportData);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to generate PDF");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="pt-4 border-t border-border">
+      <button
+        type="button"
+        onClick={handleExport}
+        disabled={loading}
+        className="w-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+      >
+        {loading ? (
+          <Loader2 className="w-5 h-5 animate-spin" />
+        ) : (
+          <Download className="w-5 h-5" />
+        )}
+        Export Hasil Analytics
+      </button>
+    </div>
+  );
 }
 
 function mapVehicleConditionToGrade(cond?: VehicleCondition): "Excellent" | "Good" | "Fair" | "Poor" {
@@ -439,6 +514,18 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
 
 
         <PricingFooter vehicleReady={vehicleReady} fetchPricing={fetchPricing} canCallPricing={canCallPricing} isBusy={isBusy} />
+
+        {/* Export Button */}
+        {vehicleReady && breakdown && (
+          <ExportSection
+            vehicle={vehicle}
+            breakdown={breakdown}
+            pawnSim={pawnSim}
+            location={location}
+            tenorDays={tenorDays}
+            product={product}
+          />
+        )}
       </div>
     </section>
   );

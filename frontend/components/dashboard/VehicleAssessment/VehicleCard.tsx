@@ -1,5 +1,6 @@
 "use client";
 
+import { Bike } from "lucide-react";
 import { useMemo, useState } from "react";
 import VehicleImageUpload from "./VehicleImageUpload";
 import VehicleFields, { VehicleForm, VehicleCondition } from "./VehicleFields";
@@ -259,23 +260,21 @@ export default function VehicleCard({
 
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-extrabold text-card-foreground">Vehicle Assessment</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Upload foto motor → AI isi atribut → pegawai bisa koreksi (Edit).
-          </p>
+    <section className="rounded-2xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border bg-muted px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="text-primary">
+            <Bike className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-base font-extrabold text-card-foreground">Vehicle Assessment</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Upload foto motor → AI isi atribut → pegawai bisa koreksi (Edit).
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={reset}
-            className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent"
-          >
-            Reset
-          </button>
+        <div className="mt-3 flex items-center justify-between gap-2">
           <label className="flex items-center gap-2 text-xs font-semibold text-foreground">
             <input
               type="checkbox"
@@ -285,11 +284,17 @@ export default function VehicleCard({
             />
             Use mock
           </label>
-
+          <button
+            type="button"
+            onClick={reset}
+            className="rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent"
+          >
+            Reset
+          </button>
         </div>
       </div>
 
-      <div className="mt-4 space-y-4">
+      <div className="p-5 space-y-4">
         {/* Image upload input */}
         <VehicleImageUpload onUpload={handleUpload} disabled={isBusy} />
 

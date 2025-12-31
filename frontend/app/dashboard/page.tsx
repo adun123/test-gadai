@@ -7,7 +7,6 @@ import DashboardGrid from "@/components/dashboard/DashboardGrid";
 import DocumentCard from "@/components/dashboard/DocumentAnalysis/DocumentCard";
 import VehicleCard from "@/components/dashboard/VehicleAssessment/VehicleCard";
 import PricingCard from "@/components/dashboard/ValuationPricing/PricingCard";
-import ExportButton from "@/components/dashboard/ExportButton";
 
 type VehicleCondition =
   | "Mulus (Grade A)"
@@ -22,27 +21,19 @@ type VehiclePayload = {
 };
 
 export default function DashboardPage() {
-  const [document, setDocument] = useState<any>(null);
-  const [pricing, setPricing] = useState<any>(null);
   const [vehicle, setVehicle] = useState<VehiclePayload | null>(null);
 
   const vehicleReady = !!vehicle?.brandModel;
 
-  const exportData = {
-    document,
-    vehicle,
-    pricing,
-  };
-
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-10">
       <PageHeader
         title="Dashboard Overview"
         subtitle="Manage vehicle appraisals, credit checks, and pricing analytics."
       />
 
       <DashboardGrid>
-        <DocumentCard  />
+        <DocumentCard />
 
         <VehicleCard
           onAnalyzed={(v) => {
@@ -55,10 +46,8 @@ export default function DashboardPage() {
           }}
         />
 
-        <PricingCard vehicleReady={vehicleReady} vehicle={vehicle ?? undefined} onPricingCalculated={setPricing} />
+        <PricingCard vehicleReady={vehicleReady} vehicle={vehicle ?? undefined} />
       </DashboardGrid>
-
-      <ExportButton data={exportData} disabled={!vehicleReady && !document} />
     </div>
   );
 }
