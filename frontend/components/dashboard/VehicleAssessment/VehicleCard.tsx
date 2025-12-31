@@ -15,13 +15,30 @@ type VehicleAnalyzedPayload = {
 type VehicleScanApiResponse = {
   success: boolean;
   document_type: "VEHICLE" | string;
-  scanned_data: any;
+  scanned_data: {
+    vehicle_identification?: {
+      make?: string;
+      model?: string;
+      license_plate?: string;
+      estimated_year?: string | number;
+      year?: string | number;
+    };
+    physical_condition?: {
+      defects?: unknown[];
+    };
+    conditionScore?: {
+      final_score?: number;
+      defects_applied?: unknown[];
+    };
+    confidence?: number;
+    images_processed?: number;
+  };
   scanned_at: string;
   is_editable: boolean;
   error?: string;
 };
 
-function mapVehicleScanToUI(payload: any): { form: VehicleForm; notes: string; defects: DefectItem[] } {
+function mapVehicleScanToUI(payload: VehicleScanApiResponse["scanned_data"]): { form: VehicleForm; notes: string; defects: DefectItem[] } {
   const s = payload ?? {};
   const vid = s.vehicle_identification ?? {};
   const pc = s.physical_condition ?? {};
@@ -29,7 +46,7 @@ function mapVehicleScanToUI(payload: any): { form: VehicleForm; notes: string; d
 
   const brandModel = [vid.make, vid.model].filter(Boolean).join(" ").trim();
   const plateNumber = vid.license_plate ?? "";
-  const year = vid.estimated_year ?? vid.year ?? "";
+  const year = String(vid.estimated_year ?? vid.year ?? "");
 
   // Map condition score (0.30-1.0) to UI grade labels
   const finalScore = cs.final_score ?? 1.0;
@@ -40,8 +57,8 @@ function mapVehicleScanToUI(payload: any): { form: VehicleForm; notes: string; d
           : "Perlu Perbaikan (Grade D)";
 
   // Handle new defects format: array of objects with description and severity
-  const defectsList = cs.defects_applied || pc.defects || [];
-  const defects: DefectItem[] = defectsList.map((d: any, idx: number) => {
+  const defectsList = (cs.defects_applied || pc.defects || []) as Array<string | { description?: string; severity?: string }>;
+  const defects: DefectItem[] = defectsList.map((d, idx: number) => {
     const label = typeof d === "string" ? d : (d.description || "Defect");
     const severityRaw = typeof d === "string" ? label : (d.severity || "Minor");
     const lower = severityRaw.toLowerCase();
@@ -71,39 +88,6 @@ function mapVehicleScanToUI(payload: any): { form: VehicleForm; notes: string; d
 
 
 type State = "idle" | "uploading" | "processing" | "done" | "error";
-
-function mockAiDetect(): { form: VehicleForm; notes: string; defects: DefectItem[] } {
-  const variants: { form: VehicleForm; notes: string; defects: DefectItem[] }[] = [
-    {
-      form: { brandModel: "Honda Scoopy", plateNumber: "B 1234 XYZ", year: "2021", physicalCondition: "Mulus (Grade A)" },
-      notes: "AI mendeteksi gores ringan di body kanan. Silakan koreksi manual bila perlu.",
-      defects: [
-        { id: "d1", label: "Lecet halus", severity: "low", selected: true },
-        { id: "d2", label: "Baret body", severity: "medium", selected: true },
-      ],
-    },
-    {
-      form: { brandModel: "Yamaha NMAX", plateNumber: "D 9812 AB", year: "2020", physicalCondition: "Normal (Grade B)" },
-      notes: "AI mendeteksi ban agak aus dan baret tipis di cover samping.",
-      defects: [
-        { id: "d3", label: "Ban aus", severity: "medium", selected: true },
-        { id: "d4", label: "Baret tipis", severity: "low", selected: true },
-      ],
-    },
-    {
-      form: { brandModel: "Honda Vario 125", plateNumber: "L 7711 CD", year: "2019", physicalCondition: "Banyak Lecet (Grade C)" },
-      notes: "AI mendeteksi lecet besar dan lampu depan terlihat retak.",
-      defects: [
-        { id: "d5", label: "Lecet besar", severity: "high", selected: true },
-        { id: "d6", label: "Lampu retak", severity: "high", selected: true },
-        { id: "d7", label: "Spion goyang", severity: "medium", selected: true },
-      ],
-    },
-  ];
-
-  return variants[Math.floor(Math.random() * variants.length)];
-}
-
 
 export default function VehicleCard({
 
@@ -189,7 +173,8 @@ export default function VehicleCard({
         throw new Error(normalized.error || "Vehicle scan failed");
       }
 
-      const mapped = mapVehicleScanToUI(normalized.payload);
+      // Payload is guaranteed to be non-null here because normalized.ok is true
+      const mapped = mapVehicleScanToUI(normalized.payload!);
 
 
       setForm(mapped.form);
@@ -208,7 +193,7 @@ export default function VehicleCard({
     }
   }
 
-  function normalizeVehicleScan(data: VehicleScanApiResponse): { ok: boolean; payload: any; error?: string } {
+  function normalizeVehicleScan(data: VehicleScanApiResponse): { ok: boolean; payload: VehicleScanApiResponse["scanned_data"] | null; error?: string } {
     // Case A: wrapper
     if ("success" in data) {
       return {
@@ -219,11 +204,18 @@ export default function VehicleCard({
     }
 
     // Case B: raw (README style)
-    if ((data as any)?.vehicle_identification || (data as any)?.physical_condition) {
+    if (hasVehicleIdentification(data)) {
       return { ok: true, payload: data };
     }
 
-    return { ok: false, payload: null, error: (data as any)?.error || "Invalid vehicle scan response" };
+    // Fallback: data doesn't match expected format
+    return { ok: false, payload: null, error: (data as { error?: string }).error || "Invalid vehicle scan response" };
+  }
+
+  function hasVehicleIdentification(data: unknown): data is VehicleScanApiResponse["scanned_data"] {
+    return typeof data === "object" && data !== null && (
+      "vehicle_identification" in data || "physical_condition" in data
+    );
   }
 
 

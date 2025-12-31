@@ -1,6 +1,13 @@
 // app/layout.tsx
 import type { Metadata } from "next";
+import { Manrope } from "next/font/google";
 import "./globals.css";
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Pegadaian AI App",
@@ -19,13 +26,8 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="id">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet" />
-      </head>
-      <body className="min-h-dvh bg-background text-foreground tracking-tight">{children}</body>
+    <html lang="id" className={manrope.variable}>
+      <body className="min-h-dvh bg-background text-foreground tracking-tight font-sans">{children}</body>
     </html>
   );
 }

@@ -28,7 +28,17 @@ type ProcessState = "idle" | "uploading" | "processing" | "done" | "error";
 type ScanApiResponse = {
   success: boolean;
   document_type: "SLIK" | "SALARY_SLIP" | string;
-  scanned_data: any;
+  scanned_data: {
+    full_name?: string;
+    fullName?: string;
+    name?: string;
+    credit_status?: CreditStatus;
+    net_income?: number;
+    employment_status?: string;
+    employmentStatus?: string;
+    confidence?: number;
+  };
+  confidence?: number;
   scanned_at: string;
   is_editable: boolean;
   error?: string;
@@ -78,8 +88,8 @@ function mapScanToExtracted(api: ScanApiResponse, fileName: string): ExtractedDo
     rawConfidence:
       typeof d.confidence === "number"
         ? d.confidence
-        : typeof (api as any).confidence === "number"
-          ? (api as any).confidence
+        : typeof api.confidence === "number"
+          ? api.confidence
           : undefined,
   };
 }

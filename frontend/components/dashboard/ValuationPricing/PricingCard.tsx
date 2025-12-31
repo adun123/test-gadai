@@ -26,7 +26,7 @@ type Props = {
     year?: string;
     physicalCondition?: VehicleCondition;
   };
-  onPricingCalculated?: (data: any) => void;
+  onPricingCalculated?: (data: UiBreakdown) => void;
 };
 
 
@@ -44,7 +44,7 @@ type PricingApiResponse = {
       vehicle_type?: string;
       province?: string;
     };
-    condition?: any;
+    condition?: Record<string, unknown>;
     pricing?: {
       market_price?: number;
       price_range?: { low?: number; high?: number } | null;
@@ -54,11 +54,11 @@ type PricingApiResponse = {
       appraisal_value?: number;
       tenor_days?: number;
     };
-    breakdown?: any;
+    breakdown?: Record<string, unknown>;
     calculated_at?: string;
   };
   error?: string;
-  errors?: any[];
+  errors?: Array<{ msg?: string; [key: string]: unknown }>;
 };
 
 type PawnApiResponse = {
@@ -70,11 +70,17 @@ type PawnApiResponse = {
       loan_amount: number;
       period_days: number;
     };
-    products?: any; // comparePawnProducts output
+    products?: Record<string, {
+      max_loan_amount?: number;
+      maxLoanAmount?: number;
+      sewaModal?: { amount?: number };
+      sewa_modal?: { sewa_modal_amount?: number };
+      schedule?: { dueDate?: string; due_date?: string };
+    }>;
     calculated_at?: string;
   };
   error?: string;
-  errors?: any[];
+  errors?: Array<{ msg?: string; [key: string]: unknown }>;
 };
 
 type UiBreakdown = {
@@ -89,14 +95,6 @@ type UiBreakdown = {
   effectiveCollateralValue?: number;
   tenorDays?: number;
 };
-function Spinner({ label }: { label?: string }) {
-  return (
-    <div className="inline-flex items-center gap-2">
-      <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-      {label ? <span className="text-xs font-semibold text-muted-foreground">{label}</span> : null}
-    </div>
-  );
-}
 
 function rupiah(n: number) {
   const abs = Math.abs(n);
@@ -238,15 +236,27 @@ function mapPricingResponseToUi(resp: PricingApiResponse): UiBreakdown | null {
   const pricing = resp.data.pricing || {};
   const breakdown = resp.data.breakdown || {};
 
-  const baseMarket = Number(pricing.market_price ?? breakdown?.pricing_breakdown?.base_market_price?.value ?? 0) || 0;
-  const assetValue = Number(breakdown?.pricing_breakdown?.asset_value ?? 0) || 0;
+  const pricingBreakdown = breakdown.pricing_breakdown as {
+    base_market_price?: { value?: number; range?: { low?: number; high?: number }; data_points?: number };
+    asset_value?: number;
+  } | undefined;
+
+  const confidenceLevel = breakdown.confidence_level as { score?: number; level?: string } | undefined;
+  const collateralCalc = breakdown.collateral_calculation as {
+    appraisal_value?: number;
+    effective_collateral_value?: number;
+    tenor_days?: number;
+  } | undefined;
+
+  const baseMarket = Number(pricing.market_price ?? pricingBreakdown?.base_market_price?.value ?? 0) || 0;
+  const assetValue = Number(pricingBreakdown?.asset_value ?? 0) || 0;
 
   // adjustment = asset - base (kalau breakdown ada), kalau nggak ada ya 0
   const adjustment = assetValue && baseMarket ? assetValue - baseMarket : 0;
 
   const confScore =
-    typeof breakdown?.confidence_level?.score === "number"
-      ? breakdown.confidence_level.score
+    typeof confidenceLevel?.score === "number"
+      ? confidenceLevel.score
       : confidenceToNumber(pricing.price_confidence);
 
   return {
@@ -254,16 +264,17 @@ function mapPricingResponseToUi(resp: PricingApiResponse): UiBreakdown | null {
     adjustment,
     assetValue: assetValue || baseMarket,
     confidence: Math.max(0.6, Math.min(0.97, confScore)),
-    confidenceLabel: breakdown?.confidence_level?.level || pricing.price_confidence || "—",
-    priceRange: (pricing.price_range as any) ?? breakdown?.pricing_breakdown?.base_market_price?.range ?? null,
-    dataPoints: pricing.data_points ?? breakdown?.pricing_breakdown?.base_market_price?.data_points,
-    appraisalValue: pricing.appraisal_value ?? breakdown?.collateral_calculation?.appraisal_value,
+    confidenceLabel: confidenceLevel?.level || pricing.price_confidence || "—",
+    priceRange: pricing.price_range ?? pricingBreakdown?.base_market_price?.range ?? null,
+    dataPoints: pricing.data_points ?? pricingBreakdown?.base_market_price?.data_points,
+    appraisalValue: pricing.appraisal_value ?? collateralCalc?.appraisal_value,
     effectiveCollateralValue:
-      pricing.effective_collateral_value ?? breakdown?.collateral_calculation?.effective_collateral_value,
-    tenorDays: pricing.tenor_days ?? breakdown?.collateral_calculation?.tenor_days,
+      pricing.effective_collateral_value ?? collateralCalc?.effective_collateral_value,
+    tenorDays: pricing.tenor_days ?? collateralCalc?.tenor_days,
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated }: Props) {
   const [location, setLocation] = useState("Jakarta Selatan, DKI Jakarta");
   const [tenorDays, setTenorDays] = useState(30);
@@ -435,7 +446,6 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
 
   const breakdown = pricing;
 
-  const confidenceText = breakdown ? `${Math.round(breakdown.confidence * 100)}%` : "—";
   const isBusy = state === "processing" || pawnState === "processing";
 
   // UI helper: ambil angka produk dari response comparePawnProducts (kalau beda struktur, tetep aman fallback)
