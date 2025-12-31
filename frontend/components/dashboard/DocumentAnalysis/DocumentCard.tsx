@@ -216,29 +216,21 @@ export default function DocumentCard() {
 
   return (
     <section className="rounded-2xl border border-border bg-card shadow-sm">
-      <div className="border-b border-border bg-muted px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="text-primary">
-            <FileText className="h-5 w-5" />
+      <div className="px-6 py-5">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-4">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Document Analysis</h2>
+              <p className="text-sm text-muted-foreground">Income & credit verification</p>
+            </div>
           </div>
-          <div className="flex-1">
-            <h2 className="text-base font-extrabold text-card-foreground">Document Analysis</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Upload dokumen → sistem ekstrak data → tampil ringkas + detail.</p>
-          </div>
-        </div>
 
-        <div className="mt-3 flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs font-semibold text-foreground">
-            <input
-              type="checkbox"
-              checked={useMock}
-              onChange={(e) => setUseMock(e.target.checked)}
-              disabled={anyBusy}
-            />
-            Use mock
-          </label>
         </div>
       </div>
+
 
       <div className="p-5 space-y-4">
         <div className="rounded-xl border border-border bg-muted px-4 py-3 text-sm text-foreground">
@@ -335,9 +327,22 @@ export default function DocumentCard() {
         >
           + Tambah Dokumen
         </button>
+
+        <div className="flex justify-end pt-2 border-t border-border/50">
+          <label className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground hover:text-foreground cursor-pointer transition-colors">
+            <input
+              type="checkbox"
+              checked={useMock}
+              onChange={(e) => setUseMock(e.target.checked)}
+              disabled={anyBusy}
+              className="h-3 w-3 rounded border-border text-primary focus:ring-primary accent-primary"
+            />
+            Use Mock Data
+          </label>
+        </div>
       </div>
 
       <DetailDrawer open={detailOpen} onClose={() => setDetailOpen(false)} doc={detailDoc} />
-    </section>
+    </section >
   );
 }

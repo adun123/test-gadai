@@ -29,7 +29,7 @@ export default function DashboardPage() {
     <div className="space-y-6 pb-10">
       <PageHeader
         title="Dashboard Overview"
-        subtitle="Manage vehicle appraisals, credit checks, and pricing analytics."
+        subtitle="Welcome back. Here is the latest valuation and risk analysis for your vehicle portfolio."
       />
 
       <DashboardGrid>

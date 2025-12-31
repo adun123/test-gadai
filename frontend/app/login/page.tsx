@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react'
 import { login } from './action'
-import { ShieldCheck, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 const initialState = {
     error: '',
@@ -12,22 +12,27 @@ export default function LoginPage() {
     const [state, formAction, isPending] = useActionState(login, initialState)
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-            <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
-                <div className="bg-blue-600 p-8 text-center">
-                    <div className="mx-auto bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mb-4 backdrop-blur-sm">
-                        <ShieldCheck className="w-8 h-8 text-white" />
+        <div className="min-h-screen flex items-center justify-center bg-background px-4">
+            <div className="max-w-md w-full bg-card rounded-3xl shadow-2xl border border-border overflow-hidden">
+                <div className="bg-primary/5 p-10 text-center border-b border-border/50">
+                    <div className="mx-auto bg-primary text-primary-foreground w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-primary/25">
+                        {/* Scale/Logo Icon */}
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 3v18" />
+                            <path d="M6 8l-4 4 4 4" />
+                            <path d="M18 8l4 4-4 4" />
+                        </svg>
                     </div>
-                    <h1 className="text-2xl font-bold text-white mb-2">Pegadaian AI</h1>
-                    <p className="text-blue-100 text-sm">Pricing Analytics System</p>
+                    <h1 className="text-3xl font-extrabold text-foreground mb-2 tracking-tight">Pegadaian AI</h1>
+                    <p className="text-muted-foreground text-sm font-medium">Pricing & Risk Analytics System</p>
                 </div>
 
-                <div className="p-8">
-                    <form action={formAction} className="space-y-6">
-                        <div>
+                <div className="p-10">
+                    <form action={formAction} className="space-y-5">
+                        <div className="space-y-1.5">
                             <label
                                 htmlFor="username"
-                                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                                className="block text-xs font-bold text-foreground uppercase tracking-wider"
                             >
                                 Username
                             </label>
@@ -36,15 +41,15 @@ export default function LoginPage() {
                                 name="username"
                                 type="text"
                                 required
-                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all bg-white"
+                                className="w-full px-4 py-3 bg-muted/50 border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground transition-all outline-none placeholder:text-muted-foreground/50"
                                 placeholder="Enter username"
                             />
                         </div>
 
-                        <div>
+                        <div className="space-y-1.5">
                             <label
                                 htmlFor="password"
-                                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                                className="block text-xs font-bold text-foreground uppercase tracking-wider"
                             >
                                 Password
                             </label>
@@ -53,13 +58,13 @@ export default function LoginPage() {
                                 name="password"
                                 type="password"
                                 required
-                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all bg-white"
+                                className="w-full px-4 py-3 bg-muted/50 border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground transition-all outline-none placeholder:text-muted-foreground/50"
                                 placeholder="Enter password"
                             />
                         </div>
 
                         {state?.error && (
-                            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 flex items-center justify-center">
+                            <div className="p-3 bg-destructive/10 text-destructive text-sm font-semibold rounded-xl flex items-center justify-center">
                                 {state.error}
                             </div>
                         )}
@@ -67,12 +72,12 @@ export default function LoginPage() {
                         <button
                             type="submit"
                             disabled={isPending}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed mt-2"
                         >
                             {isPending ? (
                                 <>
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    Signing in...
+                                    Authenticating...
                                 </>
                             ) : (
                                 'Sign In'
@@ -80,9 +85,12 @@ export default function LoginPage() {
                         </button>
                     </form>
 
-                    <div className="mt-6 text-center">
-                        <p className="text-xs text-gray-400">
-                            Restricted Access. Authorized Personnel Only.
+                    <div className="mt-8 text-center space-y-2">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                            Authorized Personnel Only
+                        </p>
+                        <p className="text-xs text-muted-foreground/50">
+                            © 2024 PT Pegadaian
                         </p>
                     </div>
                 </div>

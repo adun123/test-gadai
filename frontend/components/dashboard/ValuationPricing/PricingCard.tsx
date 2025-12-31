@@ -526,6 +526,20 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
             product={product}
           />
         )}
+
+        {/* Bottom Toggle for Mock */}
+        <div className="flex justify-end pt-2 border-t border-border/50">
+          <label className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground hover:text-foreground cursor-pointer transition-colors">
+            <input
+              type="checkbox"
+              checked={useMock}
+              onChange={(e) => setUseMock(e.target.checked)}
+              disabled={isBusy}
+              className="h-3 w-3 rounded border-border text-primary focus:ring-primary accent-primary"
+            />
+            Use Mock Data
+          </label>
+        </div>
       </div>
     </section>
   );

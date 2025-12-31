@@ -144,7 +144,7 @@ export default function VehicleCard({
     const base =
       "absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-extrabold border backdrop-blur";
     if (tone === "green") return `${base} border-green-200 bg-green-50/90 text-green-700`;
-    if (tone === "blue") return `${base} border-blue-200 bg-blue-50/90 text-blue-700`;
+    if (tone === "blue") return `${base} border-primary/30 bg-primary/10 text-primary`;
     if (tone === "red") return `${base} border-red-200 bg-red-50/90 text-red-700`;
     return `${base} border-gray-200 bg-white/80 text-gray-700`;
   }
@@ -261,36 +261,27 @@ export default function VehicleCard({
 
   return (
     <section className="rounded-2xl border border-border bg-card shadow-sm">
-      <div className="border-b border-border bg-muted px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="text-primary">
-            <Bike className="h-5 w-5" />
+      <div className="px-6 py-5">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-4">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
+              <Bike className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Vehicle Assessment</h2>
+              <p className="text-sm text-muted-foreground">Physical condition analysis</p>
+            </div>
           </div>
-          <div className="flex-1">
-            <h2 className="text-base font-extrabold text-card-foreground">Vehicle Assessment</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Upload foto motor → AI isi atribut → pegawai bisa koreksi (Edit).
-            </p>
-          </div>
-        </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <label className="flex items-center gap-2 text-xs font-semibold text-foreground">
-            <input
-              type="checkbox"
-              checked={useMock}
-              onChange={(e) => setUseMock(e.target.checked)}
-              disabled={state === "uploading" || state === "processing"}
-            />
-            Use mock
-          </label>
-          <button
-            type="button"
-            onClick={reset}
-            className="rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent"
-          >
-            Reset
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={reset}
+              className="text-xs font-semibold text-muted-foreground hover:text-primary transition-colors"
+            >
+              Reset
+            </button>
+          </div>
         </div>
       </div>
 
@@ -395,6 +386,19 @@ export default function VehicleCard({
             Catatan: PoC — output AI bersifat estimasi, verifikasi manual tetap wajib.
           </p>
         )}
+
+        <div className="flex justify-end pt-2 border-t border-border/50">
+          <label className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground hover:text-foreground cursor-pointer transition-colors">
+            <input
+              type="checkbox"
+              checked={useMock}
+              onChange={(e) => setUseMock(e.target.checked)}
+              disabled={state === "uploading" || state === "processing"}
+              className="h-3 w-3 rounded border-border text-primary focus:ring-primary accent-primary"
+            />
+            Use Mock Data
+          </label>
+        </div>
       </div>
     </section>
   );

@@ -30,7 +30,7 @@ export default function TenorSlider({ vehicleReady, product, tenorDays, setTenor
           max={max}
           value={safeValue}
           onChange={(e) => setTenorDays(Number(e.target.value))}
-          className="mt-4 w-full"
+          className="mt-4 w-full accent-primary cursor-pointer"
         />
 
         <div className="mt-2 flex justify-between text-xs font-semibold text-muted-foreground">
