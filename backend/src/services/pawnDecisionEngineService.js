@@ -5,7 +5,8 @@ const PAWN_PRODUCTS = {
     max_loan: null,
     min_tenor_days: 1,
     max_tenor_days: 120,
-    sewa_modal_per_15_days: 0.012
+    sewa_modal_per_15_days: 0.012,
+    sewa_modal_minimum: 0.01  // 1% minimum
   },
   DAILY: {
     name: 'Gadai Kendaraan Harian',
@@ -13,31 +14,46 @@ const PAWN_PRODUCTS = {
     max_loan: 20000000,
     min_tenor_days: 1,
     max_tenor_days: 60,
-    sewa_modal_per_day: 0.0009
+    sewa_modal_per_day: 0.0009,
+    sewa_modal_minimum: 0.0009  // 0.09% minimum (1 day)
   }
 };
 
+const ADMIN_FEE = 50000;  // Biaya administrasi tetap Rp50.000
+
 function calculateSewaModalRegular(loanAmount, tenorDays) {
   const periods = Math.ceil(tenorDays / 15);
-  const sewaModalRate = 0.012;
-  const sewaModal = loanAmount * sewaModalRate * periods;
+  const sewaModalRate = PAWN_PRODUCTS.REGULAR.sewa_modal_per_15_days;
+  const minRate = PAWN_PRODUCTS.REGULAR.sewa_modal_minimum;
+  
+  // Calculate sewa modal with minimum check
+  const calculatedRate = sewaModalRate * periods;
+  const effectiveRate = Math.max(calculatedRate, minRate);
+  const sewaModal = loanAmount * effectiveRate;
 
   return {
     periods: periods,
     rate_per_period: sewaModalRate,
-    total_rate: parseFloat((sewaModalRate * periods * 100).toFixed(2)),
+    minimum_rate: minRate,
+    total_rate: parseFloat((effectiveRate * 100).toFixed(2)),
     sewa_modal_amount: Math.round(sewaModal)
   };
 }
 
 function calculateSewaModalDaily(loanAmount, tenorDays) {
   const dailyRate = PAWN_PRODUCTS.DAILY.sewa_modal_per_day;
-  const sewaModal = loanAmount * dailyRate * tenorDays;
+  const minRate = PAWN_PRODUCTS.DAILY.sewa_modal_minimum;
+  
+  // Calculate sewa modal with minimum check
+  const calculatedRate = dailyRate * tenorDays;
+  const effectiveRate = Math.max(calculatedRate, minRate);
+  const sewaModal = loanAmount * effectiveRate;
 
   return {
     days: tenorDays,
     rate_per_day: dailyRate,
-    total_rate: parseFloat((dailyRate * tenorDays * 100).toFixed(2)),
+    minimum_rate: minRate,
+    total_rate: parseFloat((effectiveRate * 100).toFixed(2)),
     sewa_modal_amount: Math.round(sewaModal)
   };
 }
@@ -82,7 +98,8 @@ function calculatePawnLoan(appraisalValue, requestedLoanAmount, productType, ten
     : calculateSewaModalDaily(approvedLoanAmount, tenorDays);
 
   const dueDate = calculateDueDate(startDate, tenorDays);
-  const totalRepayment = approvedLoanAmount + sewaModal.sewa_modal_amount;
+
+  const totalRepayment = approvedLoanAmount + sewaModal.sewa_modal_amount + ADMIN_FEE;
 
   return {
     product: { type: productType, name: product.name },
@@ -94,6 +111,7 @@ function calculatePawnLoan(appraisalValue, requestedLoanAmount, productType, ten
     approved_loan_amount: approvedLoanAmount,
 
     sewa_modal: sewaModal,
+    admin_fee: ADMIN_FEE,
     total_repayment: totalRepayment,
     schedule: dueDate
   };
@@ -206,6 +224,7 @@ function generateFullPawnDecision(pricingResult, tenorDays, productType, startDa
 
 module.exports = {
   PAWN_PRODUCTS,
+  ADMIN_FEE,
   calculateSewaModalRegular,
   calculateSewaModalDaily,
   calculateDueDate,
