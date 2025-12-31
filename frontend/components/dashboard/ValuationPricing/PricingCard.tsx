@@ -371,13 +371,13 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
     const key = product === "reguler" ? "regular" : "daily";
     const p = products?.[key];
 
-    // fallback kalau struktur beda:
-    const maxLoan = p?.max_loan_amount ?? pawnResp.data.input?.loan_amount ?? 0;
-    const sewaModal = p?.sewa_modal?.sewa_modal_amount ?? 0;
+    // Support both old (snake_case) and new (camelCase) API response formats
+    const maxLoan = p?.max_loan_amount ?? p?.max_loan_amount ?? pawnResp.data.input?.loan_amount ?? 0;
+    const sewaModal = p?.sewaModal?.amount ?? p?.sewa_modal?.sewa_modal_amount ?? 0;
 
     // due date dari schedule (kalau ada) atau tenorDays
-    const due =
-      p?.schedule?.due_date ? new Date(p.schedule.due_date) : addDays(new Date(), tenorDays);
+    const dueDateStr = p?.schedule?.dueDate ?? p?.schedule?.due_date;
+    const due = dueDateStr ? new Date(dueDateStr) : addDays(new Date(), tenorDays);
 
     return {
       appraisal: breakdown.appraisalValue,

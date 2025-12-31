@@ -24,25 +24,33 @@ function mapVehicleScanToUI(payload: any): { form: VehicleForm; notes: string; d
   const s = payload ?? {};
   const vid = s.vehicle_identification ?? {};
   const pc = s.physical_condition ?? {};
+  const cs = s.conditionScore ?? {};
 
   const brandModel = [vid.make, vid.model].filter(Boolean).join(" ").trim();
   const plateNumber = vid.license_plate ?? "";
-  const year = vid.estimated_year ?? "";
+  const year = vid.estimated_year ?? vid.year ?? "";
 
-  const gradeRaw = (pc.overall_grade || "").toString().toLowerCase();
+  // Map condition score (0.30-1.0) to UI grade labels
+  const finalScore = cs.final_score ?? 1.0;
   const physicalCondition: VehicleCondition =
-    gradeRaw === "excellent" ? "Mulus (Grade A)"
-    : gradeRaw === "good" ? "Normal (Grade B)"
-    : gradeRaw === "fair" ? "Banyak Lecet (Grade C)"
-    : "Normal (Grade B)";
+    finalScore >= 0.90 ? "Mulus (Grade A)"
+    : finalScore >= 0.70 ? "Normal (Grade B)"
+    : finalScore >= 0.50 ? "Banyak Lecet (Grade C)"
+    : "Perlu Perbaikan (Grade D)";
 
-  const defectsArr: string[] = Array.isArray(pc.defects) ? pc.defects : [];
-  const defects: DefectItem[] = defectsArr.map((label, idx) => {
-    const lower = label.toLowerCase();
+  // Handle new defects format: array of objects with description and severity
+  const defectsList = cs.defects_applied || pc.defects || [];
+  const defects: DefectItem[] = defectsList.map((d: any, idx: number) => {
+    const label = typeof d === "string" ? d : (d.description || "Defect");
+    const severityRaw = typeof d === "string" ? label : (d.severity || "Minor");
+    const lower = severityRaw.toLowerCase();
+
     const severity: DefectItem["severity"] =
-      lower.includes("severe") || lower.includes("major") ? "high"
+      lower.includes("severe") ? "high"
+      : lower.includes("major") ? "high"
       : lower.includes("moderate") ? "medium"
       : "low";
+
     return { id: `ai-${idx}`, label, severity, selected: true };
   });
 
@@ -55,7 +63,7 @@ function mapVehicleScanToUI(payload: any): { form: VehicleForm; notes: string; d
       year,
       physicalCondition,
     },
-    notes: `AI confidence: ${typeof conf === "number" ? conf.toFixed(2) : "n/a"} • Processed ${s.images_processed ?? "?"} foto.`,
+    notes: `AI confidence: ${typeof conf === "number" ? conf.toFixed(2) : "n/a"} • Condition: ${Math.round(finalScore * 100)}% • Processed ${s.images_processed ?? "?"} foto.`,
     defects,
   };
 }
