@@ -3,8 +3,16 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pricing Analytics",
-  description: "Manage vehicle appraisals and credit documents.",
+  title: "Pegadaian AI App",
+  description: "Manage vehicle appraisals and credit documents (PoC)",
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: '/apple-icon.png',
+  },
 };
 
 export default function RootLayout({

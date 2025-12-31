@@ -14,26 +14,26 @@ type Props = {
 };
 
 function chipTone(sev?: DefectItem["severity"]) {
-  const base = "border bg-white text-gray-800";
-  if (sev === "high") return "border-red-200 bg-red-50 text-red-700";
-  if (sev === "medium") return "border-yellow-200 bg-yellow-50 text-yellow-800";
-  if (sev === "low") return "border-gray-200 bg-gray-50 text-gray-800";
+  const base = "border border-border bg-card text-foreground";
+  if (sev === "high") return "border-destructive/30 bg-destructive/10 text-destructive";
+  if (sev === "medium") return "border-yellow-500/30 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400";
+  if (sev === "low") return "border-border bg-muted text-muted-foreground";
   return base;
 }
 
 export default function DefectChips({ items, editable, onToggle }: Props) {
   return (
-    <div className="rounded-2xl border bg-white p-4">
+    <div className="rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-extrabold text-gray-900">Defect Terdeteksi (AI)</p>
-        <span className="text-xs font-semibold text-gray-500">
+        <p className="text-sm font-extrabold text-foreground">Defect Terdeteksi (AI)</p>
+        <span className="text-xs font-semibold text-muted-foreground">
           {editable ? "Klik chip untuk toggle" : "Klik Edit untuk koreksi"}
         </span>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
         {items.length === 0 ? (
-          <span className="text-xs text-gray-500">Belum ada defect terdeteksi.</span>
+          <span className="text-xs text-muted-foreground">Belum ada defect terdeteksi.</span>
         ) : (
           items.map((d) => (
             <button
@@ -60,7 +60,7 @@ export default function DefectChips({ items, editable, onToggle }: Props) {
         )}
       </div>
 
-      <p className="mt-3 text-xs text-gray-500">
+      <p className="mt-3 text-xs text-muted-foreground">
         Catatan: Ini PoC — output AI bisa salah. Pegawai boleh koreksi via Edit.
       </p>
     </div>

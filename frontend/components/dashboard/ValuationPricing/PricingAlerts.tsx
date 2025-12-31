@@ -8,18 +8,18 @@ export default function PricingAlerts({ errorMsg, isLoading }: Props) {
   return (
     <>
       {errorMsg ? (
-        <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-semibold text-destructive">
           {errorMsg}
         </div>
       ) : null}
 
       {isLoading ? (
-        <div className="rounded-2xl border bg-gray-50 p-4 text-sm text-gray-700">
+        <div className="rounded-2xl border border-border bg-muted p-4 text-sm text-foreground">
           <div className="flex items-center gap-3">
-            <span className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-foreground" />
             <div>
               <p className="font-bold">Sedang hitung pricing…</p>
-              <p className="text-xs text-gray-500">Ambil harga pasar + hitung taksiran. Bisa beberapa detik.</p>
+              <p className="text-xs text-muted-foreground">Ambil harga pasar + hitung taksiran. Bisa beberapa detik.</p>
             </div>
           </div>
         </div>

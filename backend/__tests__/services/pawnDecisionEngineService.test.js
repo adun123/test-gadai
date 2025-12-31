@@ -5,7 +5,8 @@ const {
   calculatePawnLoan,
   comparePawnProducts,
   generatePawnSimulation,
-  PAWN_PRODUCTS
+  PAWN_PRODUCTS,
+  ADMIN_FEE
 } = require('../../src/services/pawnDecisionEngineService');
 
 describe('Pawn Decision Engine Service', () => {
@@ -96,7 +97,7 @@ describe('Pawn Decision Engine Service', () => {
 
   describe('calculatePawnLoan()', () => {
     test('should calculate regular pawn loan correctly', () => {
-      const result = calculatePawnLoan(7500000, 'REGULAR', 30, new Date('2024-01-01'));
+      const result = calculatePawnLoan(7500000, 7500000, 'REGULAR', 30, new Date('2024-01-01'));
 
       expect(result.product.type).toBe('REGULAR');
       expect(result.product.name).toBe('Gadai Kendaraan Reguler');
@@ -108,7 +109,7 @@ describe('Pawn Decision Engine Service', () => {
     });
 
     test('should calculate daily pawn loan correctly', () => {
-      const result = calculatePawnLoan(7500000, 'DAILY', 30, new Date('2024-01-01'));
+      const result = calculatePawnLoan(7500000, 7500000, 'DAILY', 30, new Date('2024-01-01'));
 
       expect(result.product.type).toBe('DAILY');
       expect(result.product.name).toBe('Gadai Kendaraan Harian');
@@ -117,24 +118,24 @@ describe('Pawn Decision Engine Service', () => {
 
     test('should throw error for invalid product type', () => {
       expect(() => {
-        calculatePawnLoan(7500000, 'INVALID', 30);
+        calculatePawnLoan(7500000, 7500000, 'INVALID', 30);
       }).toThrow('Invalid product type');
     });
 
     test('should throw error for tenor exceeding regular max', () => {
       expect(() => {
-        calculatePawnLoan(7500000, 'REGULAR', 150);
+        calculatePawnLoan(7500000, 7500000, 'REGULAR', 150);
       }).toThrow(/between 1 and 120/);
     });
 
     test('should throw error for tenor exceeding daily max', () => {
       expect(() => {
-        calculatePawnLoan(7500000, 'DAILY', 70);
+        calculatePawnLoan(7500000, 7500000, 'DAILY', 70);
       }).toThrow(/between 1 and 60/);
     });
 
     test('should cap daily product at max loan', () => {
-      const result = calculatePawnLoan(25000000, 'DAILY', 30);
+      const result = calculatePawnLoan(25000000, 25000000, 'DAILY', 30);
 
       expect(result.max_loan_amount).toBe(20000000);
     });
@@ -142,7 +143,7 @@ describe('Pawn Decision Engine Service', () => {
 
   describe('comparePawnProducts()', () => {
     test('should compare both products for eligible tenor', () => {
-      const result = comparePawnProducts(7500000, 30);
+      const result = comparePawnProducts(7500000, 7500000, 30);
 
       expect(result.regular).toBeDefined();
       expect(result.daily).toBeDefined();
@@ -152,22 +153,22 @@ describe('Pawn Decision Engine Service', () => {
     });
 
     test('should mark daily as unavailable for long tenor', () => {
-      const result = comparePawnProducts(7500000, 90);
+      const result = comparePawnProducts(7500000, 7500000, 90);
 
       expect(result.regular.total_repayment).toBeDefined();
       expect(result.daily.available).toBe(false);
       expect(result.recommendation).toBe('REGULAR');
     });
 
-    test('should mark daily as unavailable for high loan amount', () => {
-      const result = comparePawnProducts(25000000, 30);
+    test('should cap daily product at max loan amount', () => {
+      const result = comparePawnProducts(25000000, 25000000, 30);
 
-      expect(result.daily.available).toBe(false);
-      expect(result.daily.reason).toContain('exceeds maximum');
+      expect(result.daily.max_loan_amount).toBe(20000000);
+      expect(result.daily.approved_loan_amount).toBe(20000000);
     });
 
     test('should recommend based on lower total repayment', () => {
-      const result = comparePawnProducts(5000000, 15);
+      const result = comparePawnProducts(5000000, 5000000, 15);
 
       expect(['REGULAR', 'DAILY']).toContain(result.recommendation);
     });
@@ -214,7 +215,7 @@ describe('Pawn Decision Engine Service', () => {
       expect(regular.max_loan).toBeNull();
       expect(regular.min_tenor_days).toBe(1);
       expect(regular.max_tenor_days).toBe(120);
-      expect(regular.admin_fee).toBe(50000);
+      expect(regular.sewa_modal_per_15_days).toBe(0.012);
     });
 
     test('should have correct daily product config', () => {
@@ -225,6 +226,10 @@ describe('Pawn Decision Engine Service', () => {
       expect(daily.min_tenor_days).toBe(1);
       expect(daily.max_tenor_days).toBe(60);
       expect(daily.sewa_modal_per_day).toBe(0.0009);
+    });
+
+    test('should have correct admin fee constant', () => {
+      expect(ADMIN_FEE).toBe(50000);
     });
   });
 });

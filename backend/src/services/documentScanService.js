@@ -1,9 +1,17 @@
 const { getModel } = require('../config/gemini');
 
-const SLIK_SCAN_PROMPT = `You are a document OCR specialist. Scan this SLIK OJK document and extract all visible information.
+const SLIK_SCAN_PROMPT = `You are a document OCR specialist. First, verify if this is a SLIK OJK (credit report) document.
 
-Return ONLY a valid JSON object with this structure:
+If this is NOT a SLIK document (e.g., salary slip, KTP, or other document), return:
 {
+  "is_valid_document": false,
+  "detected_type": "type of document you see",
+  "error": "This is not a SLIK document"
+}
+
+If this IS a SLIK document, extract all visible information and return:
+{
+  "is_valid_document": true,
   "full_name": "extracted name",
   "credit_status": "Lancar/Dalam Perhatian Khusus/Kurang Lancar/Diragukan/Macet",
   "collectibility": number (1-5),
@@ -22,10 +30,18 @@ Return ONLY a valid JSON object with this structure:
 
 If a field is not visible or unclear, set it to null.`;
 
-const SALARY_SLIP_SCAN_PROMPT = `You are a document OCR specialist. Scan this salary slip document and extract all visible information.
+const SALARY_SLIP_SCAN_PROMPT = `You are a document OCR specialist. First, verify if this is a salary slip (slip gaji) document.
 
-Return ONLY a valid JSON object with this structure:
+If this is NOT a salary slip (e.g., SLIK, KTP, or other document), return:
 {
+  "is_valid_document": false,
+  "detected_type": "type of document you see",
+  "error": "This is not a salary slip document"
+}
+
+If this IS a salary slip, extract all visible information and return:
+{
+  "is_valid_document": true,
   "full_name": "employee name",
   "employee_id": "ID if visible",
   "company_name": "company name",
@@ -63,6 +79,18 @@ async function scanSlikDocument(fileBuffer, mimeType = 'image/jpeg') {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      
+      // Check if document type is valid
+      if (parsed.is_valid_document === false) {
+        return {
+          success: false,
+          document_type: 'SLIK',
+          detected_type: parsed.detected_type,
+          error: parsed.error || 'Wrong document type uploaded',
+          scanned_at: new Date().toISOString()
+        };
+      }
+      
       return {
         success: true,
         document_type: 'SLIK',
@@ -108,6 +136,18 @@ async function scanSalarySlipDocument(fileBuffer, mimeType = 'image/jpeg') {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      
+      // Check if document type is valid
+      if (parsed.is_valid_document === false) {
+        return {
+          success: false,
+          document_type: 'SALARY_SLIP',
+          detected_type: parsed.detected_type,
+          error: parsed.error || 'Wrong document type uploaded',
+          scanned_at: new Date().toISOString()
+        };
+      }
+      
       return {
         success: true,
         document_type: 'SALARY_SLIP',

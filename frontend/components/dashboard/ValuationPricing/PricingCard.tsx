@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, Loader2 } from "lucide-react";
+import { generateAssessmentPDF } from "@/lib/pdf-generator";
 import PricingHeader from "./PricingHeader";
 import PricingGating from "./PricingGating";
 import PricingAlerts from "./PricingAlerts";
@@ -9,6 +11,7 @@ import TenorSlider from "./TenorSlider";
 import PricingBreakdown from "./PricingBreakdown";
 import PawnSimulation from "./PawnSimulation";
 import PricingFooter from "./PricingFooter";
+
 
 type VehicleCondition =
   | "Mulus (Grade A)"
@@ -89,8 +92,8 @@ type UiBreakdown = {
 function Spinner({ label }: { label?: string }) {
   return (
     <div className="inline-flex items-center gap-2">
-      <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
-      {label ? <span className="text-xs font-semibold text-gray-600">{label}</span> : null}
+      <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+      {label ? <span className="text-xs font-semibold text-muted-foreground">{label}</span> : null}
     </div>
   );
 }
@@ -111,6 +114,79 @@ function addDays(date: Date, days: number) {
 
 function formatIDDate(d: Date) {
   return d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+// Export Section Component
+type ExportSectionProps = {
+  vehicle?: {
+    brandModel?: string;
+    year?: string;
+    physicalCondition?: string;
+  };
+  breakdown?: UiBreakdown | null;
+  pawnSim?: {
+    maxDisbursement?: number;
+    sewaModal?: number;
+    dueDate?: Date;
+  } | null;
+  location: string;
+  tenorDays: number;
+  product: PawnProduct;
+};
+
+function ExportSection({ vehicle, breakdown, pawnSim, location, tenorDays, product }: ExportSectionProps) {
+  const [loading, setLoading] = useState(false);
+
+  const handleExport = async () => {
+    try {
+      setLoading(true);
+
+      // Build export data with only non-empty values
+      const exportData = {
+        vehicle: vehicle?.brandModel ? vehicle : undefined,
+        pricing: breakdown ? {
+          basePrice: breakdown.basePrice,
+          adjustment: breakdown.adjustment,
+          assetValue: breakdown.assetValue,
+          confidence: breakdown.confidence,
+          confidenceLabel: breakdown.confidenceLabel,
+          appraisalValue: breakdown.appraisalValue,
+          effectiveCollateralValue: breakdown.effectiveCollateralValue,
+          location: location || undefined,
+          tenorDays,
+          product,
+          ...(pawnSim?.maxDisbursement && { maxDisbursement: pawnSim.maxDisbursement }),
+          ...(pawnSim?.sewaModal && { sewaModal: pawnSim.sewaModal }),
+          ...(pawnSim?.dueDate && { dueDate: pawnSim.dueDate }),
+        } : undefined,
+      };
+
+      await generateAssessmentPDF(exportData);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to generate PDF");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="pt-4 border-t border-border">
+      <button
+        type="button"
+        onClick={handleExport}
+        disabled={loading}
+        className="w-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+      >
+        {loading ? (
+          <Loader2 className="w-5 h-5 animate-spin" />
+        ) : (
+          <Download className="w-5 h-5" />
+        )}
+        Export Hasil Analytics
+      </button>
+    </div>
+  );
 }
 
 function mapVehicleConditionToGrade(cond?: VehicleCondition): "Excellent" | "Good" | "Fair" | "Poor" {
@@ -140,6 +216,7 @@ function parseProvince(location: string): string {
   const pieces = location.split(",").map((x) => x.trim()).filter(Boolean);
   if (pieces.length >= 2) return pieces[1];
   return pieces[0] || "Indonesia";
+
 }
 
 function confidenceToNumber(label?: string): number {
@@ -150,6 +227,10 @@ function confidenceToNumber(label?: string): number {
   if (x.includes("medium")) return 0.75;
   return 0.6;
 }
+
+
+
+
 
 function mapPricingResponseToUi(resp: PricingApiResponse): UiBreakdown | null {
   if (!resp?.success || !resp.data) return null;
@@ -187,7 +268,11 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
   const [location, setLocation] = useState("Jakarta Selatan, DKI Jakarta");
   const [tenorDays, setTenorDays] = useState(30);
   const [product, setProduct] = useState<PawnProduct>("reguler");
-  const [useMock, setUseMock] = useState(false);
+
+  const [useMock, setUseMock] = useState(true);
+
+
+
 
   const [state, setState] = useState<"idle" | "processing" | "done" | "error">("idle");
   const isLoading = state === "processing";
@@ -198,13 +283,13 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
   const [pawnState, setPawnState] = useState<"idle" | "processing" | "done" | "error">("idle");
   const [pawnError, setPawnError] = useState<string | null>(null);
   const [pawnResp, setPawnResp] = useState<PawnApiResponse | null>(null);
-  
+
 
   const debounceRef = useRef<number | null>(null);
 
   const province = useMemo(() => parseProvince(location), [location]);
   const safeBrandModel =
-  typeof vehicle?.brandModel === "string" ? vehicle.brandModel : "";
+    typeof vehicle?.brandModel === "string" ? vehicle.brandModel : "";
 
   const makeModel = useMemo(() => splitBrandModel(safeBrandModel), [safeBrandModel]);
 
@@ -340,6 +425,14 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pricing?.appraisalValue, tenorDays, useMock, vehicleReady]);
 
+
+  useEffect(() => {
+    if (product === "harian") {
+      setTenorDays((v) => Math.min(Math.max(v, 1), 60));
+    }
+  }, [product, setTenorDays]);
+
+
   const breakdown = pricing;
 
   const confidenceText = breakdown ? `${Math.round(breakdown.confidence * 100)}%` : "—";
@@ -353,13 +446,13 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
     const key = product === "reguler" ? "regular" : "daily";
     const p = products?.[key];
 
-    // fallback kalau struktur beda:
-    const maxLoan = p?.max_loan_amount ?? pawnResp.data.input?.loan_amount ?? 0;
-    const sewaModal = p?.sewa_modal?.sewa_modal_amount ?? 0;
+    // Support both old (snake_case) and new (camelCase) API response formats
+    const maxLoan = p?.max_loan_amount ?? p?.max_loan_amount ?? pawnResp.data.input?.loan_amount ?? 0;
+    const sewaModal = p?.sewaModal?.amount ?? p?.sewa_modal?.sewa_modal_amount ?? 0;
 
     // due date dari schedule (kalau ada) atau tenorDays
-    const due =
-      p?.schedule?.due_date ? new Date(p.schedule.due_date) : addDays(new Date(), tenorDays);
+    const dueDateStr = p?.schedule?.dueDate ?? p?.schedule?.due_date;
+    const due = dueDateStr ? new Date(dueDateStr) : addDays(new Date(), tenorDays);
 
     return {
       appraisal: breakdown.appraisalValue,
@@ -371,7 +464,7 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
   }, [pawnResp, product, breakdown?.appraisalValue, tenorDays]);
 
   return (
-    <section className="rounded-2xl border bg-white shadow-sm">
+    <section className="rounded-2xl border border-border bg-card shadow-sm">
       <PricingHeader
         useMock={useMock}
         setUseMock={setUseMock}
@@ -392,10 +485,20 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
           province={province}
         />
 
-        <TenorSlider vehicleReady={vehicleReady} tenorDays={tenorDays} setTenorDays={setTenorDays} />
+
+
 
         <PricingBreakdown vehicleReady={vehicleReady} breakdown={breakdown} state={state} rupiah={rupiah} />
 
+        <TenorSlider
+          vehicleReady={vehicleReady}
+          product={product}
+          tenorDays={tenorDays}
+          setTenorDays={setTenorDays}
+        />
+
+
+       
         <PawnSimulation
           vehicleReady={vehicleReady}
           pawnError={pawnError}
@@ -407,7 +510,34 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
           formatIDDate={formatIDDate}
         />
 
+
         <PricingFooter vehicleReady={vehicleReady} fetchPricing={fetchPricing} canCallPricing={canCallPricing} isBusy={isBusy} />
+
+        {/* Export Button */}
+        {vehicleReady && breakdown && (
+          <ExportSection
+            vehicle={vehicle}
+            breakdown={breakdown}
+            pawnSim={pawnSim}
+            location={location}
+            tenorDays={tenorDays}
+            product={product}
+          />
+        )}
+
+        {/* Bottom Toggle for Mock */}
+        <div className="flex justify-end pt-2 border-t border-border/50">
+          <label className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground hover:text-foreground cursor-pointer transition-colors">
+            <input
+              type="checkbox"
+              checked={useMock}
+              onChange={(e) => setUseMock(e.target.checked)}
+              disabled={isBusy}
+              className="h-3 w-3 rounded border-border text-primary focus:ring-primary accent-primary"
+            />
+            Use Mock Data
+          </label>
+        </div>
       </div>
     </section>
   );

@@ -9,8 +9,22 @@ declare module "jspdf" {
     }
 }
 
+// Helper to format currency
+function formatCurrency(value: number | undefined): string | null {
+    if (value === undefined || value === null) return null;
+    return `Rp ${value.toLocaleString('id-ID')}`;
+}
+
+// Helper to check if value is non-empty
+function hasValue(value: any): boolean {
+    if (value === undefined || value === null) return false;
+    if (typeof value === 'string' && value.trim() === '') return false;
+    if (typeof value === 'number' && isNaN(value)) return false;
+    return true;
+}
+
 export async function generateAssessmentPDF(data: any) {
-    const { document, vehicle, pricing } = data;
+    const { vehicle, pricing } = data;
     const doc = new jsPDF();
     const timestamp = new Date().toLocaleString("id-ID");
 
@@ -26,111 +40,141 @@ export async function generateAssessmentPDF(data: any) {
     doc.line(14, 35, 196, 35);
 
     let finalY = 40;
+    let sectionNumber = 1;
 
-    // --- 1. DOCUMENT ANALYSIS ---
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.text("1. Document Analysis", 14, finalY);
-    finalY += 8;
+    // --- VEHICLE ASSESSMENT (only if vehicle data exists) ---
+    if (vehicle && hasValue(vehicle.brandModel)) {
+        doc.setFontSize(14);
+        doc.setTextColor(0);
+        doc.text(`${sectionNumber}. Vehicle Assessment`, 14, finalY);
+        finalY += 8;
+        sectionNumber++;
 
-    if (document) {
-        const docData = [
-            ["Full Name", document.fullName || "-"],
-            ["Document Type", document.documentType || "-"],
-            ["Credit Status", document.creditStatus || "-"],
-            ["Income Range", document.incomeRange || "-"],
-            ["Employment", document.employmentStatus || "-"],
-            ["AI Confidence", `${Math.round((document.rawConfidence || 0) * 100)}%`],
-        ];
+        // Build vehicle data array - only include non-empty fields
+        const vehicleData: [string, string][] = [];
 
-        autoTable(doc, {
-            startY: finalY,
-            head: [["Field", "Value"]],
-            body: docData,
-            theme: 'striped',
-            headStyles: { fillColor: [19, 91, 236] },
-            styles: { fontSize: 10 },
-            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
-        });
-        finalY = doc.lastAutoTable.finalY + 15;
-    } else {
-        doc.setFontSize(10);
-        doc.setTextColor(150);
-        doc.text("No document data available.", 14, finalY);
-        finalY += 15;
+        if (hasValue(vehicle.brandModel)) {
+            vehicleData.push(["Brand & Model", vehicle.brandModel]);
+        }
+        if (hasValue(vehicle.plateNumber)) {
+            vehicleData.push(["Plate Number", vehicle.plateNumber]);
+        }
+        if (hasValue(vehicle.year)) {
+            vehicleData.push(["Year", vehicle.year]);
+        }
+        if (hasValue(vehicle.physicalCondition)) {
+            vehicleData.push(["Physical Condition", vehicle.physicalCondition]);
+        }
+
+        if (vehicleData.length > 0) {
+            autoTable(doc, {
+                startY: finalY,
+                head: [["Attribute", "Details"]],
+                body: vehicleData,
+                theme: 'striped',
+                headStyles: { fillColor: [19, 91, 236] },
+                styles: { fontSize: 10 },
+                columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
+            });
+            finalY = doc.lastAutoTable.finalY + 15;
+        }
     }
 
-    // --- 2. VEHICLE ASSESSMENT ---
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.text("2. Vehicle Assessment", 14, finalY);
-    finalY += 8;
-
-    if (vehicle && vehicle.brandModel) {
-        const vehicleData = [
-            ["Brand & Model", vehicle.brandModel],
-            ["Plate Number", vehicle.plateNumber || "-"],
-            ["Year", vehicle.year || "-"],
-            ["Physical Condition", vehicle.physicalCondition || "-"],
-        ];
-
-        autoTable(doc, {
-            startY: finalY,
-            head: [["Attribute", "Details"]],
-            body: vehicleData,
-            theme: 'striped',
-            headStyles: { fillColor: [19, 91, 236] },
-            styles: { fontSize: 10 },
-            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
-        });
-        finalY = doc.lastAutoTable.finalY + 15;
-    } else {
-        doc.setFontSize(10);
-        doc.setTextColor(150);
-        doc.text("No vehicle data available.", 14, finalY);
-        finalY += 15;
-    }
-
-    // --- 3. VALUATION & PRICING ---
-    // If we have pricing logic available or passed down
-    // Since Pricing logic is inside PricingCard, we rely on what was passed or we might have to re-calculate?
-    // Ideally, Dashboard passed the *result* of pricing.
-    // But Dashboard only holds vehicle/doc data.
-    // We need to re-run pricing logic or have PricingCard notify Dashboard.
-    // For PoC, let's assume we re-calculate or simply show "See System" if not passed.
-    // BUT the user wants "Export result".
-
-    // We will assume `pricing` object is passed if available, otherwise we skip.
+    // --- VALUATION & PRICING (only if pricing data exists) ---
     if (pricing) {
         doc.setFontSize(14);
         doc.setTextColor(0);
-        doc.text("3. Valuation & Pricing", 14, finalY);
+        doc.text(`${sectionNumber}. Valuation & Pricing`, 14, finalY);
         finalY += 8;
+        sectionNumber++;
 
-        const priceData = [
-            ["Market Price (Base)", pricing.basePrice ? `Rp ${pricing.basePrice.toLocaleString('id-ID')}` : "-"],
-            ["Condition Adjustment", pricing.adjustment ? `Rp ${pricing.adjustment.toLocaleString('id-ID')}` : "-"],
-            ["Estimated Asset Value", pricing.assetValue ? `Rp ${pricing.assetValue.toLocaleString('id-ID')}` : "-"],
-            ["AI Confidence", pricing.confidence ? `${Math.round(pricing.confidence * 100)}%` : "-"],
-        ];
+        // Build pricing data array - only include non-empty fields
+        const priceData: [string, string][] = [];
 
-        autoTable(doc, {
-            startY: finalY,
-            head: [["Component", "Value"]],
-            body: priceData,
-            theme: 'grid',
-            headStyles: { fillColor: [40, 167, 69] }, // Green for money
-            styles: { fontSize: 10 },
-            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 80 } },
-        });
+        if (hasValue(pricing.location)) {
+            priceData.push(["Location", pricing.location]);
+        }
+        if (hasValue(pricing.basePrice)) {
+            priceData.push(["Market Price (Base)", formatCurrency(pricing.basePrice)!]);
+        }
+        if (hasValue(pricing.adjustment)) {
+            const sign = pricing.adjustment >= 0 ? "+" : "";
+            priceData.push(["Condition Adjustment", `${sign}${formatCurrency(pricing.adjustment)}`]);
+        }
+        if (hasValue(pricing.assetValue)) {
+            priceData.push(["Estimated Asset Value", formatCurrency(pricing.assetValue)!]);
+        }
+        if (hasValue(pricing.appraisalValue)) {
+            priceData.push(["Appraisal Value", formatCurrency(pricing.appraisalValue)!]);
+        }
+        if (hasValue(pricing.effectiveCollateralValue)) {
+            priceData.push(["Effective Collateral Value", formatCurrency(pricing.effectiveCollateralValue)!]);
+        }
+        if (hasValue(pricing.confidence)) {
+            priceData.push(["AI Confidence", `${Math.round(pricing.confidence * 100)}%`]);
+        }
+        if (hasValue(pricing.confidenceLabel)) {
+            priceData.push(["Confidence Level", pricing.confidenceLabel]);
+        }
 
-        finalY = doc.lastAutoTable.finalY + 10;
+        if (priceData.length > 0) {
+            autoTable(doc, {
+                startY: finalY,
+                head: [["Component", "Value"]],
+                body: priceData,
+                theme: 'grid',
+                headStyles: { fillColor: [40, 167, 69] }, // Green for money
+                styles: { fontSize: 10 },
+                columnStyles: { 0: { fontStyle: 'bold', cellWidth: 80 } },
+            });
+            finalY = doc.lastAutoTable.finalY + 15;
+        }
 
-        // Legal Disclaimer
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text("Disclaimer: This report is generated by AI (PoC). Values are estimates and require final verification by an appraiser.", 14, finalY + 10);
+        // --- PAWN SIMULATION (if available) ---
+        const pawnData: [string, string][] = [];
+
+        if (hasValue(pricing.product)) {
+            pawnData.push(["Product Type", pricing.product === 'harian' ? 'Gadai Harian' : 'Gadai Reguler']);
+        }
+        if (hasValue(pricing.tenorDays)) {
+            pawnData.push(["Tenor", `${pricing.tenorDays} days`]);
+        }
+        if (hasValue(pricing.maxDisbursement)) {
+            pawnData.push(["Maximum Disbursement", formatCurrency(pricing.maxDisbursement)!]);
+        }
+        if (hasValue(pricing.sewaModal)) {
+            pawnData.push(["Service Fee (Sewa Modal)", formatCurrency(pricing.sewaModal)!]);
+        }
+        if (hasValue(pricing.dueDate)) {
+            const dueDate = pricing.dueDate instanceof Date
+                ? pricing.dueDate.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })
+                : pricing.dueDate;
+            pawnData.push(["Due Date", dueDate]);
+        }
+
+        if (pawnData.length > 0) {
+            doc.setFontSize(14);
+            doc.setTextColor(0);
+            doc.text(`${sectionNumber}. Pawn Simulation`, 14, finalY);
+            finalY += 8;
+
+            autoTable(doc, {
+                startY: finalY,
+                head: [["Parameter", "Value"]],
+                body: pawnData,
+                theme: 'grid',
+                headStyles: { fillColor: [255, 193, 7] }, // Yellow/Gold for pawn
+                styles: { fontSize: 10 },
+                columnStyles: { 0: { fontStyle: 'bold', cellWidth: 80 } },
+            });
+            finalY = doc.lastAutoTable.finalY + 10;
+        }
     }
+
+    // Legal Disclaimer
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text("Disclaimer: This report is generated by AI (PoC). Values are estimates and require final verification by an appraiser.", 14, finalY + 10);
 
     doc.save(`Pegadaian_Analytics_${new Date().toISOString().slice(0, 10)}.pdf`);
 }

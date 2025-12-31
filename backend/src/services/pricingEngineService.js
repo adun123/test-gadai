@@ -38,7 +38,6 @@ Guidelines:
 - LOW confidence: estimated or 0-1 data points`;
 
 async function searchMarketPrice(makeOrVehicleInfo, model, year, province = 'Indonesia') {
-  // Support both object and separate parameters
   let make, vehicleModel, vehicleYear, vehicleProvince;
   
   if (typeof makeOrVehicleInfo === 'object') {
@@ -75,20 +74,25 @@ async function searchMarketPrice(makeOrVehicleInfo, model, year, province = 'Ind
     const response = await result.response;
     const text = response.text();
 
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const jsonMatch = text.match(/\{[\s\S]*?\}(?=\s*$|\s*[^,\]\}])/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        success: true,
-        ...parsed,
-        source: 'google_search'
-      };
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          success: true,
+          ...parsed,
+          source: 'google_search'
+        };
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError.message);
+        return getFallbackEstimate(make, vehicleModel, vehicleYear);
+      }
     }
 
-    return getFallbackEstimate(make, model, year);
+    return getFallbackEstimate(make, vehicleModel, vehicleYear);
   } catch (error) {
     console.error('Market price search failed:', error.message);
-    return getFallbackEstimate(make, model, year);
+    return getFallbackEstimate(make, vehicleModel, vehicleYear);
   }
 }
 

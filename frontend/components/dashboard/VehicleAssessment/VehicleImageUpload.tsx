@@ -109,13 +109,13 @@ export default function VehicleImageUpload({
   }
 
   return (
-    <div className="rounded-2xl border border-dashed bg-gray-50 p-4">
+    <div className="rounded-2xl border border-dashed border-border bg-muted p-4">
       {/* Drop zone */}
       <div
         className={[
-          "rounded-2xl border bg-white p-5 transition",
-          dragOver ? "border-blue-300 bg-blue-50/30" : "border-dashed",
-          disabled ? "opacity-60" : "hover:bg-gray-50",
+          "rounded-2xl border border-border bg-card p-5 transition",
+          dragOver ? "border-primary/50 bg-primary/10" : "border-dashed",
+          disabled ? "opacity-60" : "hover:bg-accent",
         ].join(" ")}
         onDragEnter={(e) => {
           e.preventDefault();
@@ -147,7 +147,7 @@ export default function VehicleImageUpload({
             className={`flex-1 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
           >
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-full bg-gray-100">
+              <div className="grid h-10 w-10 place-items-center rounded-full bg-muted">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path
                     d="M12 16V4m0 0 4 4M12 4 8 8"
@@ -166,10 +166,10 @@ export default function VehicleImageUpload({
               </div>
 
               <div className="min-w-0">
-                <p className="text-sm font-extrabold text-blue-600">
+                <p className="text-sm font-extrabold text-primary">
                   Upload / Ambil Foto Motor
                 </p>
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Drag & drop atau klik • {minFiles}-{maxFiles} foto • max {maxSizeMB}MB/foto
                 </p>
               </div>
@@ -182,7 +182,7 @@ export default function VehicleImageUpload({
                 type="button"
                 onClick={clear}
                 disabled={disabled}
-                className="rounded-xl border bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground hover:bg-accent disabled:opacity-50"
               >
                 Clear
               </button>
@@ -206,16 +206,16 @@ export default function VehicleImageUpload({
         />
 
         {/* Status line */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-gray-50 px-4 py-3 text-xs text-gray-700">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted px-4 py-3 text-xs text-foreground">
           <span className="font-semibold">
             {previews.length === 0 ? "Belum ada foto dipilih." : `${previews.length} foto dipilih.`}
           </span>
-          <span className="text-gray-500">Total: {formatBytes(totalSize)}</span>
+          <span className="text-muted-foreground">Total: {formatBytes(totalSize)}</span>
         </div>
 
         {/* Error */}
         {errorMsg ? (
-          <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
             {errorMsg}
           </div>
         ) : null}
@@ -224,14 +224,14 @@ export default function VehicleImageUpload({
         {previews.length > 0 ? (
           <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5">
             {previews.map((p) => (
-              <div key={p.id} className="overflow-hidden rounded-xl border bg-white">
+              <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={p.url} alt={p.name} className="h-20 w-full object-cover" />
                 <div className="p-2">
-                  <p className="truncate text-[11px] font-bold text-gray-800" title={p.name}>
+                  <p className="truncate text-[11px] font-bold text-foreground" title={p.name}>
                     {p.name}
                   </p>
-                  <p className="text-[10px] text-gray-500">{formatBytes(p.size)}</p>
+                  <p className="text-[10px] text-muted-foreground">{formatBytes(p.size)}</p>
                 </div>
               </div>
             ))}

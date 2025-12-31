@@ -1,31 +1,35 @@
 @import "tailwindcss";
 
 :root {
-  /* Enterprise Blue Theme */
-  --primary: #135bec;
+  /* Pegadaian Green Theme */
+  --primary: #088E41;
   --primary-foreground: #ffffff;
-  
-  --background: #f6f6f8;
-  --foreground: #111318;
-  
+
+  /* Force native form controls (checkbox, range) to use this color */
+  accent-color: var(--primary);
+
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
   --card: #ffffff;
-  --card-foreground: #111318;
-  
+  --card-foreground: #0f172a;
+
   --popover: #ffffff;
-  --popover-foreground: #111318;
-  
+  --popover-foreground: #0f172a;
+
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
-  
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
-  
+
+  --accent: #f0fdf4;
+  /* Light green tint */
+  --accent-foreground: #166534;
+
   --destructive: #ef4444;
   --destructive-foreground: #fafafa;
-  
+
   --border: #e2e8f0;
   --input: #e2e8f0;
-  --ring: #135bec;
+  --ring: #088E41;
 }
 
 @theme inline {
@@ -33,25 +37,83 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: #088E41;
+  --color-primary-foreground: #ffffff;
   --color-border: var(--border);
   --color-input: var(--input);
-  --color-ring: var(--ring);
+  --color-ring: #088E41;
   --font-display: 'Manrope', sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #101622;
-    --foreground: #ffffff;
-    --card: #1a2230;
-    --card-foreground: #ffffff;
-    --border: #2d3748;
-    --input: #2d3748;
+  :root:not(.light) {
+    --background: #020617;
+    /* Very dark slate/green tint potentially, keeping neutral dark for now or subtle green tint */
+    --foreground: #f8fafc;
+
+    --card: #0f172a;
+    --card-foreground: #f8fafc;
+
+    --popover: #0f172a;
+    --popover-foreground: #f8fafc;
+
     --muted: #1e293b;
     --muted-foreground: #94a3b8;
+
+    --accent: #14532d;
+    /* Dark green accent */
+    --accent-foreground: #f0fdf4;
+
+    --border: #1e293b;
+    --input: #1e293b;
+    --ring: #22c55e;
   }
+}
+
+/* Manual theme overrides */
+html.light {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+
+  --accent: #f0fdf4;
+  --accent-foreground: #166534;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #088E41;
+}
+
+html.dark {
+  --background: #020617;
+  --foreground: #f8fafc;
+
+  --card: #0f172a;
+  --card-foreground: #f8fafc;
+
+  --popover: #0f172a;
+  --popover-foreground: #f8fafc;
+
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+
+  --accent: #14532d;
+  --accent-foreground: #f0fdf4;
+
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #22c55e;
 }
 
 body {
@@ -59,4 +121,42 @@ body {
   color: var(--foreground);
   font-family: 'Manrope', sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Placeholder text styling for proper dark mode support */
+::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+::-webkit-input-placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+::-moz-placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+:-ms-input-placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+/* Toast fade-in animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
 }
