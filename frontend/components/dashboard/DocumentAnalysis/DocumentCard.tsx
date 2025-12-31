@@ -5,11 +5,7 @@ import DocumentUpload from "./DocumentUpload";
 import ExtractedSummary from "./ExtractedSummary";
 import DetailDrawer from "./DetailDrawer";
 
-
-
-
 export type CreditStatus = "Lancar" | "Tidak Lancar" | "Perhatian" | "Unknown";
-
 export type DocumentType = "SLIK OJK" | "Slip Gaji" | "Lainnya";
 
 export type ExtractedDocument = {
@@ -20,9 +16,8 @@ export type ExtractedDocument = {
   documentType: DocumentType;
   creditStatus: CreditStatus;
 
-  // detail fields (disimpan tapi tidak ditampilkan di ringkas)
-  employmentStatus?: string; // contoh: "Karyawan Tetap"
-  incomeRange?: string; // contoh: "Rp 5–10 jt"
+  employmentStatus?: string;
+  incomeRange?: string;
   notes?: string;
   rawConfidence?: number; // 0..1
 };
@@ -40,7 +35,6 @@ type ScanApiResponse = {
 
 function mapScanToExtracted(api: ScanApiResponse, fileName: string): ExtractedDocument {
   const d = api?.scanned_data ?? {};
-
   const fullName = d.full_name || d.fullName || d.name || "Unknown";
 
   const docType: DocumentType =
@@ -89,249 +83,255 @@ function mapScanToExtracted(api: ScanApiResponse, fileName: string): ExtractedDo
   };
 }
 
-
-type VehicleScanWrapped = {
-  success: boolean;
-  document_type: "VEHICLE" | string;
-  scanned_data: any;
-  scanned_at?: string;
-  is_editable?: boolean;
-  error?: string;
+type DocSlot = {
+  slotId: string;
+  state: ProcessState;
+  errorMsg: string | null;
+  editMode: boolean;
+  doc: ExtractedDocument | null;
 };
 
-type VehicleScanRaw = {
-  vehicle_identification: any;
-  physical_condition: any;
-  confidence?: number;
-  images_processed?: number;
-  scanned_at?: string;
-  error?: string;
-};
+const makeSlot = (): DocSlot => ({
+  slotId: crypto.randomUUID(),
+  state: "idle",
+  errorMsg: null,
+  editMode: false,
+  doc: null,
+});
 
-type VehicleScanApiResponse = VehicleScanWrapped | VehicleScanRaw;
-
-type DocumentCardProps = {
-  onAnalyzed?: (doc: ExtractedDocument | null) => void;
-};
-
-export default function DocumentCard({ onAnalyzed }: DocumentCardProps) {
-  const [state, setState] = useState<ProcessState>("idle");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [doc, setDoc] = useState<ExtractedDocument | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [selectedDocType, setSelectedDocType] = useState<DocumentType>("SLIK OJK");
+export default function DocumentCard() {
   const [useMock, setUseMock] = useState(true);
 
+  const [slots, setSlots] = useState<DocSlot[]>([makeSlot()]);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailDoc, setDetailDoc] = useState<ExtractedDocument | null>(null);
+
+  const anyBusy = slots.some((s) => s.state === "uploading" || s.state === "processing");
 
   const statusLabel = useMemo(() => {
-    switch (state) {
-      case "idle":
-        return "Upload Dokumen untuk mulai analisis.";
-      case "uploading":
-        return "Uploading…";
-      case "processing":
-        return "Processing OCR & extraction…";
-      case "done":
-        return "Selesai.";
-      case "error":
-        return "Gagal memproses dokumen.";
-      default:
-        return "";
+    if (anyBusy) return "Sedang memproses…";
+    return "Upload Dokumen untuk mulai analisis.";
+  }, [anyBusy]);
+
+  function addSlot() {
+    setSlots((prev) => [...prev, makeSlot()]);
+  }
+
+  function removeSlot(slotId: string) {
+    setSlots((prev) => {
+      const next = prev.filter((s) => s.slotId !== slotId);
+      return next.length ? next : [makeSlot()];
+    });
+  }
+
+  function resetSlot(slotId: string) {
+    setSlots((prev) =>
+      prev.map((s) => (s.slotId === slotId ? { ...s, doc: null, errorMsg: null, editMode: false, state: "idle" } : s))
+    );
+  }
+
+  function openDetail(doc: ExtractedDocument) {
+    setDetailDoc(doc);
+    setDetailOpen(true);
+  }
+
+  async function handleUpload(slotId: string, file: File) {
+    setSlots((prev) =>
+      prev.map((s) => (s.slotId === slotId ? { ...s, state: "uploading", errorMsg: null } : s))
+    );
+
+    try {
+      const form = new FormData();
+      form.append("document", file);
+
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+
+      const lower = file.name.toLowerCase();
+      const typeHint =
+        lower.includes("gaji") || lower.includes("salary") || lower.includes("payslip") || lower.includes("slip")
+          ? "salary-slip"
+          : "slik";
+
+      const url = `${base}/api/scan/document${useMock ? `?mock=true&type=${typeHint}` : ""}`;
+
+      setSlots((prev) => prev.map((s) => (s.slotId === slotId ? { ...s, state: "processing" } : s)));
+
+      const res = await fetch(url, { method: "POST", body: form });
+      const data = (await res.json()) as ScanApiResponse;
+
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error || `Request failed (HTTP ${res.status})`);
+      }
+
+      const extracted = mapScanToExtracted(data, file.name);
+
+      setSlots((prev) =>
+        prev.map((s) =>
+          s.slotId === slotId ? { ...s, doc: extracted, editMode: false, state: "done" } : s
+        )
+      );
+    } catch (e) {
+      setSlots((prev) =>
+        prev.map((s) =>
+          s.slotId === slotId
+            ? { ...s, state: "error", errorMsg: e instanceof Error ? e.message : "Unknown error" }
+            : s
+        )
+      );
     }
-  }, [state]);
+  }
 
-async function handleUpload(file: File) {
-  setErrorMsg(null);
-  setState("uploading");
+  async function reprocess(slotId: string) {
+    const slot = slots.find((s) => s.slotId === slotId);
+    if (!slot?.doc) return;
 
-  try {
-    const form = new FormData();
-    form.append("document", file);
-
-    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-
-    // hint buat mock mode (tanpa dropdown)
-    const lower = file.name.toLowerCase();
-    const typeHint =
-      lower.includes("gaji") || lower.includes("salary") || lower.includes("payslip") || lower.includes("slip")
-        ? "salary-slip"
-        : "slik";
-
-    const url = `${base}/api/scan/document${
-      useMock ? `?mock=true&type=${typeHint}` : ""
-    }`;
-
-    setState("processing");
-
-    const res = await fetch(url, { method: "POST", body: form });
-    const data = (await res.json()) as ScanApiResponse;
-
-    if (!res.ok || !data.success) {
-      throw new Error(data?.error || `Request failed (HTTP ${res.status})`);
+    if (!useMock) {
+      setSlots((prev) =>
+        prev.map((s) =>
+          s.slotId === slotId
+            ? { ...s, state: "error", errorMsg: "Untuk reprocess non-mock, silakan upload ulang file (PoC belum menyimpan file)." }
+            : s
+        )
+      );
+      return;
     }
 
-    const extracted = mapScanToExtracted(data, file.name);
-    setDoc(extracted);
-    onAnalyzed?.(extracted);
-    setState("done");
-  } catch (e) {
-    setState("error");
-    setErrorMsg(e instanceof Error ? e.message : "Unknown error");
+    setSlots((prev) => prev.map((s) => (s.slotId === slotId ? { ...s, state: "processing", errorMsg: null } : s)));
+
+    setTimeout(() => {
+      setSlots((prev) =>
+        prev.map((s) =>
+          s.slotId === slotId && s.doc
+            ? {
+                ...s,
+                doc: { ...s.doc, extractedAt: new Date().toISOString(), notes: "Re-process (mock) dijalankan ulang." },
+                state: "done",
+              }
+            : s
+        )
+      );
+    }, 500);
   }
-}
-
-
-function mapBackendToDoc(api: any, fileName: string): ExtractedDocument {
-  // karena aku belum lihat bentuk JSON result backend (mocknya gimana),
-  // aku buat fallback aman: taruh raw di notes
-  return {
-    id: api?.id || api?.scan_id || crypto.randomUUID(),
-    fileName,
-    extractedAt: new Date().toISOString(),
-    fullName: api?.fullName || api?.data?.fullName || "Unknown",
-    documentType: "SLIK OJK",
-    creditStatus: api?.creditStatus || "Unknown",
-    employmentStatus: api?.employmentStatus,
-    incomeRange: api?.incomeRange,
-    notes: api?.notes || `Raw result: ${JSON.stringify(api).slice(0, 500)}...`,
-    rawConfidence: api?.confidence ?? api?.rawConfidence ?? undefined,
-  };
-}
-
-
-  function reset() {
-    setDoc(null);
-    onAnalyzed?.(null);
-    setErrorMsg(null);
-    setState("idle");
-  }
-
-async function reprocess() {
-  if (!doc) return;
-
-  setErrorMsg(null);
-
-  if (!useMock) {
-    setState("error");
-    setErrorMsg("Untuk reprocess non-mock, silakan upload ulang file (PoC belum menyimpan file).");
-    return;
-  }
-
-  // mock mode: cukup refresh timestamp (simulasi rerun)
-  setState("processing");
-  setTimeout(() => {
-    const updated = doc ? { ...doc, extractedAt: new Date().toISOString(), notes: "Re-process (mock) dijalankan ulang." } : null;
-    setDoc(updated);
-    onAnalyzed?.(updated);
-    setState("done");
-  }, 500);
-}
-
-function normalizeVehicleScan(data: VehicleScanApiResponse): { ok: boolean; payload: any; error?: string } {
-  // Case A: wrapper
-  if ("success" in data) {
-    return {
-      ok: !!data.success,
-      payload: data.scanned_data,
-      error: data.error,
-    };
-  }
-
-  // Case B: raw (README style)
-  if ((data as any)?.vehicle_identification || (data as any)?.physical_condition) {
-    return { ok: true, payload: data };
-  }
-
-  return { ok: false, payload: null, error: (data as any)?.error || "Invalid vehicle scan response" };
-}
 
   return (
     <section className="rounded-2xl border bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-extrabold">Document Analysis</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Upload dokumen → sistem ekstrak data → tampil ringkas + detail.
-          </p>
+          <p className="mt-1 text-sm text-gray-600">Upload dokumen → sistem ekstrak data → tampil ringkas + detail.</p>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {/* <select
-              value={selectedDocType}
-              onChange={(e) => setSelectedDocType(e.target.value as DocumentType)}
-              className="rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700"
-              disabled={state === "uploading" || state === "processing"}
-            >
-              <option value="SLIK OJK">SLIK OJK</option>
-              <option value="Slip Gaji">Slip Gaji</option>
-            </select> */}
-
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input
                 type="checkbox"
                 checked={useMock}
                 onChange={(e) => setUseMock(e.target.checked)}
-                disabled={state === "uploading" || state === "processing"}
+                disabled={anyBusy}
               />
               Use mock
             </label>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setDetailOpen(true)}
-          disabled={!doc}
-          className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Detail
-        </button>
       </div>
-
 
       <div className="mt-4 space-y-4">
         <div className="rounded-xl border bg-gray-50 px-4 py-3 text-sm text-gray-700">
           <div className="flex items-center justify-between gap-3">
             <span className="font-semibold">{statusLabel}</span>
-            <span className="text-xs text-gray-500">
-              Mode: PoC (mock extraction)
-            </span>
+            <span className="text-xs text-gray-500">Mode: PoC (mock extraction)</span>
           </div>
-          {errorMsg ? <p className="mt-2 text-sm text-red-600">{errorMsg}</p> : null}
         </div>
 
-        {!doc ? (
-          <DocumentUpload onUpload={handleUpload} disabled={state === "uploading" || state === "processing"} />
-        ) : (
-          <>
-            <ExtractedSummary
-              doc={doc}
-              editMode={editMode}
-              onToggleEdit={() => setEditMode((v) => !v)}
-              onChange={(patch) => setDoc((prev) => (prev ? { ...prev, ...patch } : prev))}
-            />
+        {/* SLOT LIST */}
+        {slots.map((slot, idx) => {
+          const busy = slot.state === "uploading" || slot.state === "processing";
 
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={reset}
-                className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-              >
-                Ganti Dokumen
-              </button>
-              <button
-                type="button"
-                onClick={reprocess}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:opacity-90"
-              >
-                Re-process
-              </button>
+          return (
+            <div key={slot.slotId} className="rounded-2xl border bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-extrabold">Dokumen {idx + 1}</div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    Status: <span className="font-semibold">{slot.state}</span>
+                  </div>
+                  {slot.errorMsg ? <p className="mt-2 text-sm text-red-600">{slot.errorMsg}</p> : null}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => (slot.doc ? openDetail(slot.doc) : null)}
+                    disabled={!slot.doc}
+                    className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Detail
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeSlot(slot.slotId)}
+                    className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    Hapus
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {!slot.doc ? (
+                  <DocumentUpload onUpload={(file) => handleUpload(slot.slotId, file)} disabled={busy} />
+                ) : (
+                  <>
+                    <ExtractedSummary
+                      doc={slot.doc}
+                      editMode={slot.editMode}
+                      onToggleEdit={() =>
+                        setSlots((prev) =>
+                          prev.map((s) => (s.slotId === slot.slotId ? { ...s, editMode: !s.editMode } : s))
+                        )
+                      }
+                      onChange={(patch) =>
+                        setSlots((prev) =>
+                          prev.map((s) =>
+                            s.slotId === slot.slotId && s.doc ? { ...s, doc: { ...s.doc, ...patch } } : s
+                          )
+                        )
+                      }
+                    />
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => resetSlot(slot.slotId)}
+                        className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                      >
+                        Ganti Dokumen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => reprocess(slot.slotId)}
+                        className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:opacity-90"
+                      >
+                        Re-process
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-          </>
-        )}
+          );
+        })}
+
+        {/* ✅ ADD BUTTON DI BAWAH LIST */}
+        <button
+          type="button"
+          onClick={addSlot}
+          className="w-full rounded-2xl border bg-white px-4 py-3 text-sm font-extrabold text-gray-900 hover:bg-gray-50"
+        >
+          + Tambah Dokumen
+        </button>
       </div>
 
-      <DetailDrawer open={detailOpen} onClose={() => setDetailOpen(false)} doc={doc} />
+      <DetailDrawer open={detailOpen} onClose={() => setDetailOpen(false)} doc={detailDoc} />
     </section>
   );
 }

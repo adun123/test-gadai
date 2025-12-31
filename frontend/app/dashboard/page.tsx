@@ -42,7 +42,7 @@ export default function DashboardPage() {
       />
 
       <DashboardGrid>
-        <DocumentCard onAnalyzed={setDocument} />
+        <DocumentCard  />
 
         <VehicleCard
           onAnalyzed={(v) => {

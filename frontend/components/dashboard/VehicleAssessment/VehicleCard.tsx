@@ -282,6 +282,9 @@ async function reprocess() {
       </div>
 
       <div className="mt-4 space-y-4">
+         {/* Image upload input */}
+        <VehicleImageUpload onUpload={handleUpload} disabled={isBusy} />
+
         {/* Image area */}
         <div className="relative overflow-hidden rounded-2xl border bg-gray-50">
           {badge ? <div className={badgeClass(badge.tone)}>{badge.text}</div> : null}
@@ -292,8 +295,8 @@ async function reprocess() {
           ) : (
             <div className="grid h-52 place-items-center px-6 text-center">
               <div>
-                <p className="text-sm font-extrabold text-gray-900">Upload Foto Motor</p>
-                <p className="mt-1 text-xs text-gray-500">Untuk PoC, cukup 1 foto samping yang jelas.</p>
+                <p className="text-sm font-extrabold text-gray-900">Preview Foto Kendaraan</p>
+               
               </div>
             </div>
           )}
@@ -306,8 +309,7 @@ async function reprocess() {
         ) : null}
 
 
-        {/* Image upload input */}
-        <VehicleImageUpload onUpload={handleUpload} disabled={isBusy} />
+
 
 
 

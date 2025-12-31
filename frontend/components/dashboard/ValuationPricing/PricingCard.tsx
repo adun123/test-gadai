@@ -10,6 +10,7 @@ import PricingBreakdown from "./PricingBreakdown";
 import PawnSimulation from "./PawnSimulation";
 import PricingFooter from "./PricingFooter";
 
+
 type VehicleCondition =
   | "Mulus (Grade A)"
   | "Normal (Grade B)"
@@ -140,6 +141,7 @@ function parseProvince(location: string): string {
   const pieces = location.split(",").map((x) => x.trim()).filter(Boolean);
   if (pieces.length >= 2) return pieces[1];
   return pieces[0] || "Indonesia";
+
 }
 
 function confidenceToNumber(label?: string): number {
@@ -150,6 +152,10 @@ function confidenceToNumber(label?: string): number {
   if (x.includes("medium")) return 0.75;
   return 0.6;
 }
+
+
+
+
 
 function mapPricingResponseToUi(resp: PricingApiResponse): UiBreakdown | null {
   if (!resp?.success || !resp.data) return null;
@@ -187,7 +193,11 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
   const [location, setLocation] = useState("Jakarta Selatan, DKI Jakarta");
   const [tenorDays, setTenorDays] = useState(30);
   const [product, setProduct] = useState<PawnProduct>("reguler");
-  const [useMock, setUseMock] = useState(false);
+
+  const [useMock, setUseMock] = useState(true);
+
+
+
 
   const [state, setState] = useState<"idle" | "processing" | "done" | "error">("idle");
   const isLoading = state === "processing";
@@ -340,6 +350,14 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pricing?.appraisalValue, tenorDays, useMock, vehicleReady]);
 
+
+  useEffect(() => {
+    if (product === "harian") {
+      setTenorDays((v) => Math.min(Math.max(v, 1), 60));
+    }
+  }, [product, setTenorDays]);
+
+
   const breakdown = pricing;
 
   const confidenceText = breakdown ? `${Math.round(breakdown.confidence * 100)}%` : "—";
@@ -392,9 +410,21 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
           province={province}
         />
 
-        <TenorSlider vehicleReady={vehicleReady} tenorDays={tenorDays} setTenorDays={setTenorDays} />
+
+
 
         <PricingBreakdown vehicleReady={vehicleReady} breakdown={breakdown} state={state} rupiah={rupiah} />
+
+        <TenorSlider
+          vehicleReady={vehicleReady}
+          product={product}
+          tenorDays={tenorDays}
+          setTenorDays={setTenorDays}
+        />
+       
+
+        <PricingBreakdown vehicleReady={vehicleReady} breakdown={breakdown} state={state} rupiah={rupiah} />
+
 
         <PawnSimulation
           vehicleReady={vehicleReady}
@@ -406,6 +436,7 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
           pawnState={pawnState}
           formatIDDate={formatIDDate}
         />
+
 
         <PricingFooter vehicleReady={vehicleReady} fetchPricing={fetchPricing} canCallPricing={canCallPricing} isBusy={isBusy} />
       </div>
