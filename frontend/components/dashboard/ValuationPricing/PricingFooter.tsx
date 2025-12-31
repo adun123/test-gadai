@@ -15,7 +15,7 @@ export default function PricingFooter({ vehicleReady, fetchPricing, canCallPrici
         type="button"
         onClick={fetchPricing}
         disabled={!canCallPricing || isBusy}
-        className="rounded-xl border bg-white px-4 py-2 text-xs font-extrabold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        className="rounded-xl border border-border bg-card px-4 py-2 text-xs font-extrabold text-foreground hover:bg-accent disabled:opacity-50"
       >
         Refresh Pricing
       </button>

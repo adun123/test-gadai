@@ -14,20 +14,20 @@ export default function PricingLocation({
 }: Props) {
   return (
     <div className={`${vehicleReady ? "" : "pointer-events-none opacity-50"}`}>
-      <label className="text-sm font-extrabold text-gray-900">Lokasi</label>
+      <label className="text-sm font-extrabold text-foreground">Lokasi</label>
 
       <div className="mt-1">
         <input
           value={location}
           onChange={(e) => setLocation(e.target.value)}
           placeholder="Contoh: Jakarta Selatan, Surabaya"
-          className="w-full rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-gray-900 shadow-sm focus:border-blue-600 focus:outline-none"
+          className="w-full rounded-2xl border border-input bg-card px-4 py-3 text-sm font-semibold text-foreground shadow-sm focus:border-ring focus:outline-none"
         />
       </div>
 
-      <p className="mt-2 text-xs text-gray-500">
+      <p className="mt-2 text-xs text-muted-foreground">
         Estimasi harga untuk wilayah{" "}
-        <span className="font-semibold text-gray-700">
+        <span className="font-semibold text-foreground">
           {province || "Indonesia"}
         </span>
       </p>

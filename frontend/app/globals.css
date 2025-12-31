@@ -4,25 +4,25 @@
   /* Enterprise Blue Theme */
   --primary: #135bec;
   --primary-foreground: #ffffff;
-  
+
   --background: #f6f6f8;
   --foreground: #111318;
-  
+
   --card: #ffffff;
   --card-foreground: #111318;
-  
+
   --popover: #ffffff;
   --popover-foreground: #111318;
-  
+
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
-  
+
   --accent: #f1f5f9;
   --accent-foreground: #0f172a;
-  
+
   --destructive: #ef4444;
   --destructive-foreground: #fafafa;
-  
+
   --border: #e2e8f0;
   --input: #e2e8f0;
   --ring: #135bec;
@@ -43,14 +43,24 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #101622;
-    --foreground: #ffffff;
-    --card: #1a2230;
-    --card-foreground: #ffffff;
-    --border: #2d3748;
-    --input: #2d3748;
-    --muted: #1e293b;
-    --muted-foreground: #94a3b8;
+    --background: #0f172a;
+    --foreground: #f1f5f9;
+
+    --card: #1e293b;
+    --card-foreground: #f1f5f9;
+
+    --popover: #1e293b;
+    --popover-foreground: #f1f5f9;
+
+    --muted: #334155;
+    --muted-foreground: #e2e8f0;
+
+    --accent: #334155;
+    --accent-foreground: #f1f5f9;
+
+    --border: #334155;
+    --input: #334155;
+    --ring: #3b82f6;
   }
 }
 
@@ -59,4 +69,25 @@ body {
   color: var(--foreground);
   font-family: 'Manrope', sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Placeholder text styling for proper dark mode support */
+::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+::-webkit-input-placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+::-moz-placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+:-ms-input-placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.7;
 }

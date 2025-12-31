@@ -26,11 +26,11 @@ export default function Spinner({
       <span
         aria-hidden="true"
         className={[
-          "animate-spin rounded-full border-gray-300 border-t-gray-900",
+          "animate-spin rounded-full border-muted-foreground border-t-foreground",
           SIZE_MAP[size],
         ].join(" ")}
       />
-      {label ? <span className="text-xs font-semibold text-gray-700">{label}</span> : null}
+      {label ? <span className="text-xs font-semibold text-foreground">{label}</span> : null}
 
       {/* A11y */}
       <span className="sr-only">{label || "Loading"}</span>

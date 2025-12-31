@@ -203,10 +203,10 @@ export default function DocumentCard() {
         prev.map((s) =>
           s.slotId === slotId && s.doc
             ? {
-                ...s,
-                doc: { ...s.doc, extractedAt: new Date().toISOString(), notes: "Re-process (mock) dijalankan ulang." },
-                state: "done",
-              }
+              ...s,
+              doc: { ...s.doc, extractedAt: new Date().toISOString(), notes: "Re-process (mock) dijalankan ulang." },
+              state: "done",
+            }
             : s
         )
       );
@@ -214,14 +214,14 @@ export default function DocumentCard() {
   }
 
   return (
-    <section className="rounded-2xl border bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-extrabold">Document Analysis</h2>
-          <p className="mt-1 text-sm text-gray-600">Upload dokumen → sistem ekstrak data → tampil ringkas + detail.</p>
+          <h2 className="text-base font-extrabold text-card-foreground">Document Analysis</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Upload dokumen → sistem ekstrak data → tampil ringkas + detail.</p>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
+            <label className="flex items-center gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
                 checked={useMock}
@@ -235,10 +235,10 @@ export default function DocumentCard() {
       </div>
 
       <div className="mt-4 space-y-4">
-        <div className="rounded-xl border bg-gray-50 px-4 py-3 text-sm text-gray-700">
+        <div className="rounded-xl border border-border bg-muted px-4 py-3 text-sm text-foreground">
           <div className="flex items-center justify-between gap-3">
             <span className="font-semibold">{statusLabel}</span>
-            <span className="text-xs text-gray-500">Mode: PoC (mock extraction)</span>
+            <span className="text-xs text-muted-foreground">Mode: PoC (mock extraction)</span>
           </div>
         </div>
 
@@ -247,14 +247,14 @@ export default function DocumentCard() {
           const busy = slot.state === "uploading" || slot.state === "processing";
 
           return (
-            <div key={slot.slotId} className="rounded-2xl border bg-white p-4">
+            <div key={slot.slotId} className="rounded-2xl border border-border bg-card p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-extrabold">Dokumen {idx + 1}</div>
-                  <div className="mt-1 text-xs text-gray-500">
+                  <div className="text-sm font-extrabold text-card-foreground">Dokumen {idx + 1}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
                     Status: <span className="font-semibold">{slot.state}</span>
                   </div>
-                  {slot.errorMsg ? <p className="mt-2 text-sm text-red-600">{slot.errorMsg}</p> : null}
+                  {slot.errorMsg ? <p className="mt-2 text-sm text-destructive">{slot.errorMsg}</p> : null}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -262,14 +262,14 @@ export default function DocumentCard() {
                     type="button"
                     onClick={() => (slot.doc ? openDetail(slot.doc) : null)}
                     disabled={!slot.doc}
-                    className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent disabled:opacity-50"
                   >
                     Detail
                   </button>
                   <button
                     type="button"
                     onClick={() => removeSlot(slot.slotId)}
-                    className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent"
                   >
                     Hapus
                   </button>
@@ -302,14 +302,14 @@ export default function DocumentCard() {
                       <button
                         type="button"
                         onClick={() => resetSlot(slot.slotId)}
-                        className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                        className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground hover:bg-accent"
                       >
                         Ganti Dokumen
                       </button>
                       <button
                         type="button"
                         onClick={() => reprocess(slot.slotId)}
-                        className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:opacity-90"
+                        className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:opacity-90"
                       >
                         Re-process
                       </button>
@@ -325,7 +325,7 @@ export default function DocumentCard() {
         <button
           type="button"
           onClick={addSlot}
-          className="w-full rounded-2xl border bg-white px-4 py-3 text-sm font-extrabold text-gray-900 hover:bg-gray-50"
+          className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-sm font-extrabold text-foreground hover:bg-accent"
         >
           + Tambah Dokumen
         </button>

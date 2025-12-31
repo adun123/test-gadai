@@ -38,21 +38,21 @@ export default function PawnSimulation({
   return (
     <>
       {vehicleReady && pawnError ? (
-        <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-semibold text-destructive">
           {pawnError}
         </div>
       ) : null}
 
       {vehicleReady && breakdown?.appraisalValue ? (
         <div className="space-y-4">
-          <div className="rounded-2xl border bg-gray-50 p-2">
+          <div className="rounded-2xl border border-border bg-muted p-2">
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setProduct("reguler")}
                 className={[
                   "rounded-xl px-4 py-2 text-sm font-extrabold",
-                  product === "reguler" ? "border bg-white shadow-sm" : "text-gray-500",
+                  product === "reguler" ? "border border-border bg-card shadow-sm text-foreground" : "text-muted-foreground",
                 ].join(" ")}
               >
                 Gadai Reguler
@@ -62,7 +62,7 @@ export default function PawnSimulation({
                 onClick={() => setProduct("harian")}
                 className={[
                   "rounded-xl px-4 py-2 text-sm font-extrabold",
-                  product === "harian" ? "border bg-white shadow-sm" : "text-gray-500",
+                  product === "harian" ? "border border-border bg-card shadow-sm text-foreground" : "text-muted-foreground",
                 ].join(" ")}
               >
                 Gadai Harian
@@ -70,10 +70,10 @@ export default function PawnSimulation({
             </div>
           </div>
 
-          <div className="rounded-2xl bg-blue-700 p-5 text-white shadow-sm">
+          <div className="rounded-2xl bg-primary p-5 text-primary-foreground shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-extrabold text-white/80">Nilai Taksir Gadai</p>
+                <p className="text-xs font-extrabold opacity-80">Nilai Taksir Gadai</p>
                 <p className="mt-2 text-lg font-extrabold">
                   {breakdown.appraisalValue.toLocaleString("id-ID", {
                     style: "currency",
@@ -81,27 +81,27 @@ export default function PawnSimulation({
                     maximumFractionDigits: 0,
                   })}
                 </p>
-                <p className="mt-2 text-xs text-white/70">
+                <p className="mt-2 text-xs opacity-70">
                   • ECV:{" "}
                   {typeof breakdown.effectiveCollateralValue === "number"
                     ? breakdown.effectiveCollateralValue.toLocaleString("id-ID", {
-                        style: "currency",
-                        currency: "IDR",
-                        maximumFractionDigits: 0,
-                      })
+                      style: "currency",
+                      currency: "IDR",
+                      maximumFractionDigits: 0,
+                    })
                     : "—"}
                 </p>
               </div>
 
               <div className="text-right">
-                <p className="text-xs font-extrabold text-white/80">Maksimal Dana Cair</p>
+                <p className="text-xs font-extrabold opacity-80">Maksimal Dana Cair</p>
                 <p className="mt-2 text-lg font-extrabold text-yellow-300">
                   {pawnSim?.maxDisbursement
                     ? pawnSim.maxDisbursement.toLocaleString("id-ID", {
-                        style: "currency",
-                        currency: "IDR",
-                        maximumFractionDigits: 0,
-                      })
+                      style: "currency",
+                      currency: "IDR",
+                      maximumFractionDigits: 0,
+                    })
                     : pawnState === "processing"
                       ? "Menghitung…"
                       : "—"}
@@ -111,21 +111,21 @@ export default function PawnSimulation({
 
             <div className="mt-6 grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs font-extrabold text-white/80">SEWA MODAL</p>
+                <p className="text-xs font-extrabold opacity-80">SEWA MODAL</p>
                 <p className="mt-1 text-sm font-bold">
                   {pawnSim?.sewaModal
                     ? pawnSim.sewaModal.toLocaleString("id-ID", {
-                        style: "currency",
-                        currency: "IDR",
-                        maximumFractionDigits: 0,
-                      })
+                      style: "currency",
+                      currency: "IDR",
+                      maximumFractionDigits: 0,
+                    })
                     : pawnState === "processing"
                       ? "Menghitung…"
                       : "—"}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-xs font-extrabold text-white/80">JATUH TEMPO</p>
+                <p className="text-xs font-extrabold opacity-80">JATUH TEMPO</p>
                 <p className="mt-1 text-sm font-bold">
                   {pawnSim?.dueDate ? formatIDDate(pawnSim.dueDate) : "—"}
                 </p>

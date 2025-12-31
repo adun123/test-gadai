@@ -15,12 +15,12 @@ export default function TenorSlider({ vehicleReady, product, tenorDays, setTenor
 
   return (
     <div className={`${vehicleReady ? "" : "pointer-events-none opacity-50"}`}>
-      <div className="rounded-2xl border bg-white p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex items-end justify-between">
-          <p className="text-sm font-extrabold text-gray-900">Tenor</p>
+          <p className="text-sm font-extrabold text-foreground">Tenor</p>
           <div className="text-right">
-            <p className="text-3xl font-extrabold text-blue-700">{safeValue}</p>
-            <p className="text-sm font-semibold text-gray-600">Hari</p>
+            <p className="text-3xl font-extrabold text-primary">{safeValue}</p>
+            <p className="text-sm font-semibold text-muted-foreground">Hari</p>
           </div>
         </div>
 
@@ -33,7 +33,7 @@ export default function TenorSlider({ vehicleReady, product, tenorDays, setTenor
           className="mt-4 w-full"
         />
 
-        <div className="mt-2 flex justify-between text-xs font-semibold text-gray-500">
+        <div className="mt-2 flex justify-between text-xs font-semibold text-muted-foreground">
           <span>{min} Hari</span>
           <span>{max} Hari</span>
         </div>

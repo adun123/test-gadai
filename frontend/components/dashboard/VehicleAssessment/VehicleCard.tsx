@@ -34,9 +34,9 @@ function mapVehicleScanToUI(payload: any): { form: VehicleForm; notes: string; d
   const finalScore = cs.final_score ?? 1.0;
   const physicalCondition: VehicleCondition =
     finalScore >= 0.90 ? "Mulus (Grade A)"
-    : finalScore >= 0.70 ? "Normal (Grade B)"
-    : finalScore >= 0.50 ? "Banyak Lecet (Grade C)"
-    : "Perlu Perbaikan (Grade D)";
+      : finalScore >= 0.70 ? "Normal (Grade B)"
+        : finalScore >= 0.50 ? "Banyak Lecet (Grade C)"
+          : "Perlu Perbaikan (Grade D)";
 
   // Handle new defects format: array of objects with description and severity
   const defectsList = cs.defects_applied || pc.defects || [];
@@ -47,9 +47,9 @@ function mapVehicleScanToUI(payload: any): { form: VehicleForm; notes: string; d
 
     const severity: DefectItem["severity"] =
       lower.includes("severe") ? "high"
-      : lower.includes("major") ? "high"
-      : lower.includes("moderate") ? "medium"
-      : "low";
+        : lower.includes("major") ? "high"
+          : lower.includes("moderate") ? "medium"
+            : "low";
 
     return { id: `ai-${idx}`, label, severity, selected: true };
   });
@@ -105,11 +105,11 @@ function mockAiDetect(): { form: VehicleForm; notes: string; defects: DefectItem
 
 
 export default function VehicleCard({
-  
-    onAnalyzed,
-    }: {
-        onAnalyzed?: (v: VehicleAnalyzedPayload) => void;
-    }) {
+
+  onAnalyzed,
+}: {
+  onAnalyzed?: (v: VehicleAnalyzedPayload) => void;
+}) {
   console.log("VehicleCard rendered");
   const [state, setState] = useState<State>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -121,7 +121,7 @@ export default function VehicleCard({
     plateNumber: "",
     year: "",
     physicalCondition: "Mulus (Grade A)",
-    
+
   });
   const [notes, setNotes] = useState("");
   const [useMock, setUseMock] = useState(true);
@@ -150,84 +150,84 @@ export default function VehicleCard({
 
   //integrasi handleupload
   async function handleUpload(files: File[]) {
-    
+
     console.log("VehicleCard handleUpload called:", files?.map(f => f.name));
 
-  setErrorMsg(null);
-  setEditMode(false);
-  setState("uploading");
+    setErrorMsg(null);
+    setEditMode(false);
+    setState("uploading");
 
-  try {
-    if (!files || files.length === 0) throw new Error("Pilih minimal 1 foto.");
+    try {
+      if (!files || files.length === 0) throw new Error("Pilih minimal 1 foto.");
 
-    const limited = files.slice(0, 5);
-    setLastFiles(limited);
+      const limited = files.slice(0, 5);
+      setLastFiles(limited);
 
-    // preview pakai foto pertama
-    if (imageUrl) URL.revokeObjectURL(imageUrl);
-    const preview = URL.createObjectURL(limited[0]);
-    setImageUrl(preview);
+      // preview pakai foto pertama
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+      const preview = URL.createObjectURL(limited[0]);
+      setImageUrl(preview);
 
-    setState("processing");
+      setState("processing");
 
-    const formData = new FormData();
-    limited.forEach((f) => formData.append("images", f)); // HARUS "images"
-    
-    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-    const url = `${base}/api/scan/vehicle${useMock ? "?mock=true" : ""}`;
+      const formData = new FormData();
+      limited.forEach((f) => formData.append("images", f)); // HARUS "images"
 
-    const res = await fetch(url, { method: "POST", body: formData });
-    const data = (await res.json()) as VehicleScanApiResponse;
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+      const url = `${base}/api/scan/vehicle${useMock ? "?mock=true" : ""}`;
 
-    if (!res.ok) {
-      throw new Error(`Request failed (HTTP ${res.status})`);
+      const res = await fetch(url, { method: "POST", body: formData });
+      const data = (await res.json()) as VehicleScanApiResponse;
+
+      if (!res.ok) {
+        throw new Error(`Request failed (HTTP ${res.status})`);
+      }
+
+      const normalized = normalizeVehicleScan(data);
+      if (!normalized.ok) {
+        throw new Error(normalized.error || "Vehicle scan failed");
+      }
+
+      const mapped = mapVehicleScanToUI(normalized.payload);
+
+
+      setForm(mapped.form);
+      setNotes(mapped.notes);
+      setDefects(mapped.defects);
+
+      setState("done");
+      onAnalyzed?.({
+        brandModel: mapped.form.brandModel,
+        year: mapped.form.year,
+        physicalCondition: mapped.form.physicalCondition,
+      });
+    } catch (e) {
+      setState("error");
+      setErrorMsg(e instanceof Error ? e.message : "Gagal memproses gambar");
+    }
+  }
+
+  function normalizeVehicleScan(data: VehicleScanApiResponse): { ok: boolean; payload: any; error?: string } {
+    // Case A: wrapper
+    if ("success" in data) {
+      return {
+        ok: !!data.success,
+        payload: data.scanned_data,
+        error: data.error,
+      };
     }
 
-    const normalized = normalizeVehicleScan(data);
-    if (!normalized.ok) {
-      throw new Error(normalized.error || "Vehicle scan failed");
+    // Case B: raw (README style)
+    if ((data as any)?.vehicle_identification || (data as any)?.physical_condition) {
+      return { ok: true, payload: data };
     }
 
-    const mapped = mapVehicleScanToUI(normalized.payload);
-
-
-    setForm(mapped.form);
-    setNotes(mapped.notes);
-    setDefects(mapped.defects);
-
-    setState("done");
-    onAnalyzed?.({
-      brandModel: mapped.form.brandModel,
-      year: mapped.form.year,
-      physicalCondition: mapped.form.physicalCondition,
-    });
-  } catch (e) {
-    setState("error");
-    setErrorMsg(e instanceof Error ? e.message : "Gagal memproses gambar");
-  }
-}
-
-function normalizeVehicleScan(data: VehicleScanApiResponse): { ok: boolean; payload: any; error?: string } {
-  // Case A: wrapper
-  if ("success" in data) {
-    return {
-      ok: !!data.success,
-      payload: data.scanned_data,
-      error: data.error,
-    };
+    return { ok: false, payload: null, error: (data as any)?.error || "Invalid vehicle scan response" };
   }
 
-  // Case B: raw (README style)
-  if ((data as any)?.vehicle_identification || (data as any)?.physical_condition) {
-    return { ok: true, payload: data };
-  }
 
-  return { ok: false, payload: null, error: (data as any)?.error || "Invalid vehicle scan response" };
-}
-
-
-//integrasi reset
-function reset() {
+  //integrasi reset
+  function reset() {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
     setImageUrl(null);
     setState("idle");
@@ -237,33 +237,33 @@ function reset() {
     setNotes("");
     setDefects([]);
     onAnalyzed?.({
-        brandModel: "",
-        year: "",
-        physicalCondition: undefined,
+      brandModel: "",
+      year: "",
+      physicalCondition: undefined,
     });
 
 
   }
-const isBusy = state === "uploading" || state === "processing";
-const hasResult = state === "done";
+  const isBusy = state === "uploading" || state === "processing";
+  const hasResult = state === "done";
 
-//integrasi reprocess
-async function reprocess() {
-  if (lastFiles.length === 0 || isBusy) return;
-  setEditMode(false);
-  await handleUpload(lastFiles);
-}
+  //integrasi reprocess
+  async function reprocess() {
+    if (lastFiles.length === 0 || isBusy) return;
+    setEditMode(false);
+    await handleUpload(lastFiles);
+  }
 
 
 
 
 
   return (
-    <section className="rounded-2xl border bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-extrabold">Vehicle Assessment</h2>
-          <p className="mt-1 text-sm text-gray-600">
+          <h2 className="text-base font-extrabold text-card-foreground">Vehicle Assessment</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Upload foto motor → AI isi atribut → pegawai bisa koreksi (Edit).
           </p>
         </div>
@@ -272,11 +272,11 @@ async function reprocess() {
           <button
             type="button"
             onClick={reset}
-            className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent"
           >
             Reset
           </button>
-          <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+          <label className="flex items-center gap-2 text-xs font-semibold text-foreground">
             <input
               type="checkbox"
               checked={useMock}
@@ -290,11 +290,11 @@ async function reprocess() {
       </div>
 
       <div className="mt-4 space-y-4">
-         {/* Image upload input */}
+        {/* Image upload input */}
         <VehicleImageUpload onUpload={handleUpload} disabled={isBusy} />
 
         {/* Image area */}
-        <div className="relative overflow-hidden rounded-2xl border bg-gray-50">
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-muted">
           {badge ? <div className={badgeClass(badge.tone)}>{badge.text}</div> : null}
 
           {imageUrl ? (
@@ -303,15 +303,15 @@ async function reprocess() {
           ) : (
             <div className="grid h-52 place-items-center px-6 text-center">
               <div>
-                <p className="text-sm font-extrabold text-gray-900">Preview Foto Kendaraan</p>
-               
+                <p className="text-sm font-extrabold text-foreground">Preview Foto Kendaraan</p>
+
               </div>
             </div>
           )}
         </div>
 
         {errorMsg ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-semibold text-destructive">
             {errorMsg}
           </div>
         ) : null}
@@ -323,14 +323,14 @@ async function reprocess() {
 
         {/* Header kecil untuk hasil + tombol edit */}
         <div className="flex items-center justify-between">
-          <p className="text-xs font-extrabold tracking-wider text-gray-500">AI GENERATED FIELDS</p>
+          <p className="text-xs font-extrabold tracking-wider text-muted-foreground">AI GENERATED FIELDS</p>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={reprocess}
               disabled={!imageUrl || isBusy}
-              className="rounded-xl border bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground hover:bg-accent disabled:opacity-50"
             >
               Re-process
             </button>
@@ -339,7 +339,7 @@ async function reprocess() {
               type="button"
               onClick={() => setEditMode((v) => !v)}
               disabled={!hasResult}
-              className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-extrabold text-white hover:opacity-90 disabled:opacity-50"
+              className="rounded-xl bg-primary px-3 py-2 text-xs font-extrabold text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
               {editMode ? "Selesai" : "Edit"}
             </button>
@@ -347,46 +347,46 @@ async function reprocess() {
         </div>
 
         <VehicleFields
-            value={form}
-            disabled={isBusy || !editMode}
-            onChange={(patch) => {
-                setForm((prev) => {
-                const next = { ...prev, ...patch };
-                // realtime update pricing saat edit
-                onAnalyzed?.({
-                    brandModel: next.brandModel,
-                    year: next.year,
-                    physicalCondition: next.physicalCondition,
-                });
-                return next;
-                });
-            }}
-            />
+          value={form}
+          disabled={isBusy || !editMode}
+          onChange={(patch) => {
+            setForm((prev) => {
+              const next = { ...prev, ...patch };
+              // realtime update pricing saat edit
+              onAnalyzed?.({
+                brandModel: next.brandModel,
+                year: next.year,
+                physicalCondition: next.physicalCondition,
+              });
+              return next;
+            });
+          }}
+        />
 
 
-            <DefectChips
-            items={defects}
-            editable={!isBusy && editMode}
-            onToggle={(id) =>
-                setDefects((prev) =>
-                prev.map((d) => (d.id === id ? { ...d, selected: !d.selected } : d))
-                )
-            }
-            />
+        <DefectChips
+          items={defects}
+          editable={!isBusy && editMode}
+          onToggle={(id) =>
+            setDefects((prev) =>
+              prev.map((d) => (d.id === id ? { ...d, selected: !d.selected } : d))
+            )
+          }
+        />
 
-            <Notes
-            value={notes}
-            disabled={isBusy || !editMode}
-            onChange={setNotes}
-            />
+        <Notes
+          value={notes}
+          disabled={isBusy || !editMode}
+          onChange={setNotes}
+        />
 
 
         {!hasResult ? (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             Hasil akan muncul setelah foto diunggah dan diproses AI.
           </p>
         ) : (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             Catatan: PoC — output AI bersifat estimasi, verifikasi manual tetap wajib.
           </p>
         )}

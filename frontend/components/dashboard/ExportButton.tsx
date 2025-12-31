@@ -34,7 +34,7 @@ export default function ExportButton({ data, disabled }: ExportButtonProps) {
                 type="button"
                 onClick={handleExport}
                 disabled={disabled || loading}
-                className="bg-[#111318] dark:bg-white text-white dark:text-[#111318] hover:bg-black dark:hover:bg-gray-200 shadow-xl px-6 py-3 rounded-full font-bold flex items-center gap-2 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl px-6 py-3 rounded-full font-bold flex items-center gap-2 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 {loading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />

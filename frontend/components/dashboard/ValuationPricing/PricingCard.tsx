@@ -90,8 +90,8 @@ type UiBreakdown = {
 function Spinner({ label }: { label?: string }) {
   return (
     <div className="inline-flex items-center gap-2">
-      <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
-      {label ? <span className="text-xs font-semibold text-gray-600">{label}</span> : null}
+      <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+      {label ? <span className="text-xs font-semibold text-muted-foreground">{label}</span> : null}
     </div>
   );
 }
@@ -208,13 +208,13 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
   const [pawnState, setPawnState] = useState<"idle" | "processing" | "done" | "error">("idle");
   const [pawnError, setPawnError] = useState<string | null>(null);
   const [pawnResp, setPawnResp] = useState<PawnApiResponse | null>(null);
-  
+
 
   const debounceRef = useRef<number | null>(null);
 
   const province = useMemo(() => parseProvince(location), [location]);
   const safeBrandModel =
-  typeof vehicle?.brandModel === "string" ? vehicle.brandModel : "";
+    typeof vehicle?.brandModel === "string" ? vehicle.brandModel : "";
 
   const makeModel = useMemo(() => splitBrandModel(safeBrandModel), [safeBrandModel]);
 
@@ -389,7 +389,7 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
   }, [pawnResp, product, breakdown?.appraisalValue, tenorDays]);
 
   return (
-    <section className="rounded-2xl border bg-white shadow-sm">
+    <section className="rounded-2xl border border-border bg-card shadow-sm">
       <PricingHeader
         useMock={useMock}
         setUseMock={setUseMock}
@@ -421,7 +421,7 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
           tenorDays={tenorDays}
           setTenorDays={setTenorDays}
         />
-       
+
 
         <PricingBreakdown vehicleReady={vehicleReady} breakdown={breakdown} state={state} rupiah={rupiah} />
 
