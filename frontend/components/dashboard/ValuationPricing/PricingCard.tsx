@@ -498,9 +498,7 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
         />
 
 
-        <PricingBreakdown vehicleReady={vehicleReady} breakdown={breakdown} state={state} rupiah={rupiah} />
-
-
+       
         <PawnSimulation
           vehicleReady={vehicleReady}
           pawnError={pawnError}
