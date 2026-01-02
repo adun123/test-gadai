@@ -17,6 +17,13 @@ type PreviewItem = {
   url: string;
   file: File;
 };
+const ALLOWED_MIMES = new Set(["image/jpeg", "image/png"]);
+const ALLOWED_EXT = new Set(["jpg", "jpeg", "png"]);
+
+function extOf(name: string) {
+  const i = name.lastIndexOf(".");
+  return i >= 0 ? name.slice(i + 1).toLowerCase() : "";
+}
 
 function formatBytes(bytes: number) {
   const units = ["B", "KB", "MB", "GB"];
@@ -46,38 +53,53 @@ export default function VehicleImageUpload({
     prev.forEach((p) => URL.revokeObjectURL(p.url));
   }
 
-  function validateAndBuild(files: File[]) {
-    const maxBytes = maxSizeMB * 1024 * 1024;
+function validateAndBuild(files: File[]) {
+  const maxBytes = maxSizeMB * 1024 * 1024;
 
-    const imagesOnly = files.filter((f) => f.type.startsWith("image/"));
-    if (imagesOnly.length === 0) {
-      return { ok: false as const, error: "File harus gambar (JPG/PNG/WebP/HEIC tergantung device)." };
-    }
+  const imageCandidates = files.filter((f) => {
+    const ext = extOf(f.name);
+    const mimeOk = ALLOWED_MIMES.has(f.type);
+    const extOk = ALLOWED_EXT.has(ext);
+    return mimeOk || extOk;
+  });
 
-    const limited = imagesOnly.slice(0, maxFiles);
-
-    const tooBig = limited.find((f) => f.size > maxBytes);
-    if (tooBig) {
-      return {
-        ok: false as const,
-        error: `Ukuran file terlalu besar: ${tooBig.name} (${formatBytes(tooBig.size)}). Max ${maxSizeMB}MB per foto.`,
-      };
-    }
-
-    if (limited.length < minFiles) {
-      return { ok: false as const, error: `Minimal ${minFiles} foto.` };
-    }
-
-    const next: PreviewItem[] = limited.map((f) => ({
-      id: crypto.randomUUID(),
-      name: f.name,
-      size: f.size,
-      url: URL.createObjectURL(f),
-      file: f,
-    }));
-
-    return { ok: true as const, items: next };
+  if (imageCandidates.length === 0) {
+    return { ok: false as const, error: "Format tidak didukung. Gunakan JPG/JPEG atau PNG (WEBP/HEIC tidak didukung)." };
   }
+
+  const rejected = files.filter((f) => !imageCandidates.includes(f));
+  if (rejected.length > 0) {
+    return {
+      ok: false as const,
+      error: `File "${rejected[0].name}" ditolak. Gunakan hanya JPG/JPEG atau PNG.`,
+    };
+  }
+
+  const limited = imageCandidates.slice(0, maxFiles);
+
+  const tooBig = limited.find((f) => f.size > maxBytes);
+  if (tooBig) {
+    return {
+      ok: false as const,
+      error: `Ukuran file terlalu besar: ${tooBig.name} (${formatBytes(tooBig.size)}). Max ${maxSizeMB}MB per foto.`,
+    };
+  }
+
+  if (limited.length < minFiles) {
+    return { ok: false as const, error: `Minimal ${minFiles} foto.` };
+  }
+
+  const next: PreviewItem[] = limited.map((f) => ({
+    id: crypto.randomUUID(),
+    name: f.name,
+    size: f.size,
+    url: URL.createObjectURL(f),
+    file: f,
+  }));
+
+  return { ok: true as const, items: next };
+}
+
 
   async function commitFiles(files: File[]) {
     if (disabled) return;
@@ -193,7 +215,8 @@ export default function VehicleImageUpload({
         <input
           id="vehicle-upload-input"
           type="file"
-          accept="image/*"
+          accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+
           multiple
           capture="environment"
           disabled={disabled}
