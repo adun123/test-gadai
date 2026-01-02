@@ -69,6 +69,36 @@ export default function ExtractedSummary({ doc, editMode, onToggleEdit, onChange
           </span>
         </div>
       </div>
+      {/* Gaji Debitur — hanya Slip Gaji */}
+      {doc.documentType === "Slip Gaji" && (
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-800">
+            Gaji Bersih (Take Home Pay)
+          </label>
+
+          <input
+            value={
+              typeof doc.netIncome === "number"
+                ? doc.netIncome.toLocaleString("id-ID")
+                : ""
+            }
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^\d]/g, "");
+              onChange({ netIncome: raw ? Number(raw) : undefined });
+            }}
+            disabled={!editMode}
+            className="w-full rounded-2xl border px-4 py-3 text-base font-semibold text-gray-900 shadow-sm
+                      disabled:bg-gray-50"
+            placeholder="Contoh: 9.000.000"
+            inputMode="numeric"
+          />
+
+          <p className="pt-1 text-xs text-gray-500">
+            Diambil dari slip gaji (AI) dan dapat dikoreksi manual.
+          </p>
+        </div>
+      )}
+
 
       {/* Status Kredit */}
       <div className="space-y-1">

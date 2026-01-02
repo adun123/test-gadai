@@ -12,16 +12,20 @@ export type DocumentType = "SLIK OJK" | "Slip Gaji" | "Lainnya";
 export type ExtractedDocument = {
   id: string;
   fileName: string;
-  extractedAt: string; // ISO string
+  extractedAt: string;
   fullName: string;
   documentType: DocumentType;
   creditStatus: CreditStatus;
 
+  // 🔥 TAMBAHAN
+  netIncome?: number;
+
   employmentStatus?: string;
   incomeRange?: string;
   notes?: string;
-  rawConfidence?: number; // 0..1
+  rawConfidence?: number;
 };
+
 
 type ProcessState = "idle" | "uploading" | "processing" | "done" | "error";
 
@@ -60,7 +64,7 @@ function mapScanToExtracted(api: ScanApiResponse, fileName: string): ExtractedDo
           ? "Rp 5–10 jt"
           : "< Rp 5 jt"
       : undefined;
-
+ 
   const employmentStatus = d.employment_status || d.employmentStatus;
 
   return {
@@ -70,6 +74,8 @@ function mapScanToExtracted(api: ScanApiResponse, fileName: string): ExtractedDo
     fullName,
     documentType: docType,
     creditStatus: docType === "SLIK OJK" ? creditStatus : "Unknown",
+    // SIMPAN ANGKA GAJI
+  netIncome,
     employmentStatus,
     incomeRange,
     notes: api?.success

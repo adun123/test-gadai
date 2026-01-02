@@ -1,14 +1,82 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 
 type Props = {
   onUpload: (file: File) => void | Promise<void>;
   disabled?: boolean;
+  label?: string;
+  helperText?: string;
+  maxSizeMB?: number; // optional
 };
 
-export default function DocumentUploadCard({ onUpload, disabled }: Props) {
+const ALLOWED_MIMES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+]);
+
+const ALLOWED_EXT = new Set(["pdf", "jpg", "jpeg", "png"]);
+
+function getExt(name: string) {
+  const idx = name.lastIndexOf(".");
+  return idx >= 0 ? name.slice(idx + 1).toLowerCase() : "";
+}
+
+function prettyAllowed() {
+  return "PDF, JPG/JPEG, PNG";
+}
+
+export default function DocumentUploadCard({
+  onUpload,
+  disabled,
+  label = "Click to Upload",
+  helperText = "Upload SLIK OJK atau Payslip",
+  maxSizeMB = 10,
+}: Props) {
   const ref = useRef<HTMLInputElement | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const accept = useMemo(() => ".pdf,.jpg,.jpeg,.png", []);
+
+  function validate(file: File) {
+    const ext = getExt(file.name);
+    const mimeOk = ALLOWED_MIMES.has(file.type);
+    const extOk = ALLOWED_EXT.has(ext);
+
+    // beberapa browser kadang kosongin file.type untuk file tertentu
+    if (!mimeOk && !extOk) {
+      return `Invalid file type. Use ${prettyAllowed()}.`;
+    }
+
+    const maxBytes = maxSizeMB * 1024 * 1024;
+    if (file.size > maxBytes) {
+      return `File too large. Max ${maxSizeMB}MB.`;
+    }
+
+    return null;
+  }
+
+  async function handleFile(file: File) {
+    setError(null);
+
+    const msg = validate(file);
+    if (msg) {
+      setFileName(null);
+      setError(msg);
+      return;
+    }
+
+    setFileName(file.name);
+    try {
+      await onUpload(file);
+    } catch (e: any) {
+      // kalau parent lempar error, tampilkan dengan sopan
+      setError(e?.message || "Upload failed. Please try again.");
+    }
+  }
 
   return (
     <div className="rounded-2xl border border-dashed border-border bg-muted p-4">
@@ -16,7 +84,36 @@ export default function DocumentUploadCard({ onUpload, disabled }: Props) {
         type="button"
         onClick={() => ref.current?.click()}
         disabled={disabled}
-        className="w-full rounded-2xl border border-dashed border-border bg-card p-5 text-center hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+        className={[
+          "w-full rounded-2xl border border-dashed border-border bg-card p-5 text-center transition",
+          "hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60",
+          isDragOver ? "ring-2 ring-primary/40" : "",
+          error ? "border-red-300" : "",
+        ].join(" ")}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!disabled) setIsDragOver(true);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!disabled) setIsDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragOver(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragOver(false);
+          if (disabled) return;
+
+          const f = e.dataTransfer.files?.[0];
+          if (f) handleFile(f);
+        }}
       >
         <div className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-full bg-muted">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -36,19 +133,37 @@ export default function DocumentUploadCard({ onUpload, disabled }: Props) {
           </svg>
         </div>
 
-        <p className="text-sm font-extrabold text-primary">Click to Upload</p>
-        <p className="mt-1 text-xs text-muted-foreground">SLIK OJK or Payslips (PDF, JPG)</p>
+        <p className="text-sm font-extrabold text-primary">
+          {isDragOver ? "Drop file here" : label}
+        </p>
+
+        <p className="mt-1 text-xs text-muted-foreground">
+          {helperText} — <span className="font-medium">{prettyAllowed()}</span> (max {maxSizeMB}MB)
+        </p>
+
+        {fileName ? (
+          <p className="mt-3 text-xs font-semibold text-foreground">
+            Selected: <span className="break-all">{fileName}</span>
+          </p>
+        ) : null}
+
+        {error ? (
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left">
+            <p className="text-xs font-semibold text-red-700">Upload error</p>
+            <p className="mt-0.5 text-xs text-red-700">{error}</p>
+          </div>
+        ) : null}
       </button>
 
       <input
         ref={ref}
         type="file"
         className="hidden"
-        accept=".pdf,.jpg,.jpeg,.png,.webp"
+        accept={accept}
         disabled={disabled}
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) onUpload(f);
+          if (f) handleFile(f);
           e.currentTarget.value = "";
         }}
       />
