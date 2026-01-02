@@ -11,6 +11,7 @@ import TenorSlider from "./TenorSlider";
 import PricingBreakdown from "./PricingBreakdown";
 import PawnSimulation from "./PawnSimulation";
 import PricingFooter from "./PricingFooter";
+import { VALID_PROVINCES } from "../../../constants/provinces";
 
 
 type VehicleCondition =
@@ -243,6 +244,7 @@ function mapPricingResponseToUi(resp: PricingApiResponse): UiBreakdown | null {
 
   // adjustment = asset - base (kalau breakdown ada), kalau nggak ada ya 0
   const adjustment = assetValue && baseMarket ? assetValue - baseMarket : 0;
+// default bebas
 
   const confScore =
     typeof breakdown?.confidence_level?.score === "number"
@@ -272,7 +274,7 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
   const [useMock, setUseMock] = useState(true);
 
 
-
+  const [province, setProvince] = useState<string>("Jawa Barat"); 
 
   const [state, setState] = useState<"idle" | "processing" | "done" | "error">("idle");
   const isLoading = state === "processing";
@@ -287,7 +289,7 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
 
   const debounceRef = useRef<number | null>(null);
 
-  const province = useMemo(() => parseProvince(location), [location]);
+ 
   const safeBrandModel =
     typeof vehicle?.brandModel === "string" ? vehicle.brandModel : "";
 
@@ -478,12 +480,12 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
 
         <PricingAlerts errorMsg={errorMsg} isLoading={isLoading} />
 
-        <PricingLocation
-          vehicleReady={vehicleReady}
-          location={location}
-          setLocation={setLocation}
-          province={province}
-        />
+      <PricingLocation
+        vehicleReady={vehicleReady}
+        province={province}
+        setProvince={setProvince}
+        provinces={VALID_PROVINCES}
+      />
 
 
 
@@ -496,7 +498,6 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
           tenorDays={tenorDays}
           setTenorDays={setTenorDays}
         />
-
 
        
         <PawnSimulation
