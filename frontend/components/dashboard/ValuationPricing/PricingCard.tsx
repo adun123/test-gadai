@@ -23,12 +23,14 @@ type VehicleCondition =
 type Props = {
   vehicleReady: boolean;
   vehicle?: {
-    brandModel?: string; // ✅ string
+    brandModel?: string;
     year?: string;
     physicalCondition?: VehicleCondition;
+    defects?: Array<{ description: string; severity: "Minor" | "Moderate" | "Major" | string }> | string[];
   };
   onPricingCalculated?: (data: any) => void;
 };
+
 
 
 type PawnProduct = "reguler" | "harian";
@@ -236,15 +238,27 @@ function confidenceToNumber(label?: string): number {
 function mapPricingResponseToUi(resp: PricingApiResponse): UiBreakdown | null {
   if (!resp?.success || !resp.data) return null;
 
-  const pricing = resp.data.pricing || {};
-  const breakdown = resp.data.breakdown || {};
+  const pricing = resp.data.pricing ?? {};
+  const breakdown = resp.data.breakdown ?? {};
+  const pb = breakdown.pricing_breakdown ?? {};
+  const coll = breakdown.collateral_calculation ?? {};
 
-  const baseMarket = Number(pricing.market_price ?? breakdown?.pricing_breakdown?.base_market_price?.value ?? 0) || 0;
-  const assetValue = Number(breakdown?.pricing_breakdown?.asset_value ?? 0) || 0;
+  const baseMarket = Number(pb.base_market_price?.value ?? pricing.market_price ?? 0);
 
-  // adjustment = asset - base (kalau breakdown ada), kalau nggak ada ya 0
-  const adjustment = assetValue && baseMarket ? assetValue - baseMarket : 0;
-// default bebas
+  const condAdj = Number(pb.condition_adjustment?.value ?? 0);
+
+  // kalau backend sudah kasih asset_value, pakai. Kalau tidak, hitung dari base+adj
+  const assetValueRaw = pb.asset_value;
+  const assetValue =
+    Number.isFinite(Number(assetValueRaw)) && Number(assetValueRaw) !== 0
+      ? Number(assetValueRaw)
+      : baseMarket + condAdj;
+
+  // adjustment: prioritaskan condition_adjustment (bukan selisih)
+  const adjustment =
+    Number.isFinite(condAdj) && condAdj !== 0
+      ? condAdj
+      : (baseMarket && assetValue ? assetValue - baseMarket : 0);
 
   const confScore =
     typeof breakdown?.confidence_level?.score === "number"
@@ -254,24 +268,24 @@ function mapPricingResponseToUi(resp: PricingApiResponse): UiBreakdown | null {
   return {
     basePrice: baseMarket,
     adjustment,
-    assetValue: assetValue || baseMarket,
+    assetValue,
     confidence: Math.max(0.6, Math.min(0.97, confScore)),
-    confidenceLabel: breakdown?.confidence_level?.level || pricing.price_confidence || "—",
-    priceRange: (pricing.price_range as any) ?? breakdown?.pricing_breakdown?.base_market_price?.range ?? null,
-    dataPoints: pricing.data_points ?? breakdown?.pricing_breakdown?.base_market_price?.data_points,
-    appraisalValue: pricing.appraisal_value ?? breakdown?.collateral_calculation?.appraisal_value,
-    effectiveCollateralValue:
-      pricing.effective_collateral_value ?? breakdown?.collateral_calculation?.effective_collateral_value,
-    tenorDays: pricing.tenor_days ?? breakdown?.collateral_calculation?.tenor_days,
+    confidenceLabel: breakdown?.confidence_level?.level ?? pricing.price_confidence ?? "—",
+    priceRange: pb.base_market_price?.range ?? pricing.price_range ?? null,
+    dataPoints: pb.base_market_price?.data_points ?? pricing.data_points,
+    appraisalValue: coll.appraisal_value ?? pricing.appraisal_value,
+    effectiveCollateralValue: coll.effective_collateral_value ?? pricing.effective_collateral_value,
+    tenorDays: coll.tenor_days ?? pricing.tenor_days,
   };
 }
+
 
 export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated }: Props) {
   const [location, setLocation] = useState("Jakarta Selatan, DKI Jakarta");
   const [tenorDays, setTenorDays] = useState(30);
   const [product, setProduct] = useState<PawnProduct>("reguler");
 
-  const [useMock, setUseMock] = useState(true);
+  const [useMock, setUseMock] = useState(false);
 
 
   const [province, setProvince] = useState<string>("Jawa Barat"); 
@@ -301,59 +315,76 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
   }, [vehicle?.year]);
 
   const overallGrade = useMemo(() => mapVehicleConditionToGrade(vehicle?.physicalCondition), [vehicle?.physicalCondition]);
+  const [defects, setDefects] = useState<string[]>([]);
 
   const canCallPricing = vehicleReady && !!makeModel.make && !!makeModel.model;
+  
 
-  async function fetchPricing() {
-    if (!canCallPricing) return;
+async function fetchPricing() {
+  if (!canCallPricing) return;
 
-    setErrorMsg(null);
-    setState("processing");
+  setErrorMsg(null);
+  setState("processing");
 
-    try {
-      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-      const url = `${base}/api/calculate/pricing${useMock ? "?mock=true" : ""}`;
+  try {
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+    const url = `${base}/api/calculate/pricing${useMock ? "?mock=true" : ""}`;
 
-      const body = {
-        vehicle_identification: {
-          make: makeModel.make,
-          model: makeModel.model,
-          year: yearNum,
-          vehicle_type: "Matic",
-        },
-        physical_condition: {
-          overall_grade: overallGrade,
-          defects: [], // kalau nanti ada defects dari VehicleCard, isi di sini
-        },
-        province,
-        tenor_days: tenorDays,
-      };
+    const body = {
+      vehicle_identification: {
+        make: makeModel.make,
+        model: makeModel.model,
+        year: yearNum,
+        vehicle_type: "Matic",
+      },
+      physical_condition: {
+        overall_grade: overallGrade,
+        defects, // ✅ ini penting
+      },
+      province,
+      tenor_days: tenorDays,
+    };
+ 
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
 
-      const data = (await res.json()) as PricingApiResponse;
+    const data = (await res.json()) as PricingApiResponse;
 
-      if (!res.ok || !data.success) {
-        const msg =
-          data?.error ||
-          (Array.isArray(data?.errors) ? data.errors?.[0]?.msg : null) ||
-          `Request failed (HTTP ${res.status})`;
-        throw new Error(msg);
-      }
+ 
 
-      const mapped = mapPricingResponseToUi(data);
-      setPricing(mapped);
-      setState("done");
-    } catch (e) {
-      setState("error");
-      setErrorMsg(e instanceof Error ? e.message : "Gagal menghitung pricing");
-      setPricing(null);
+    console.log("RAW pricing response:", data);
+    console.log("RAW breakdown.pricing_breakdown:", data?.data?.breakdown?.pricing_breakdown);
+    console.log("RAW condition_adjustment:", data?.data?.breakdown?.pricing_breakdown?.condition_adjustment);
+    console.log("DEFECTS SENT:", defects);
+
+    if (!res.ok || !data.success) {
+      const msg =
+        data?.error ||
+        (Array.isArray(data?.errors) ? data.errors?.[0]?.msg : null) ||
+        `Request failed (HTTP ${res.status})`;
+      throw new Error(msg);
     }
+    const mapped = mapPricingResponseToUi(data);
+    
+    console.log("PB:", data?.data?.breakdown?.pricing_breakdown);
+console.log("COND:", data?.data?.breakdown?.pricing_breakdown?.condition_adjustment);
+
+    console.log("MAPPED UI breakdown:", mapped);
+    setPricing(mapped);
+
+    setPricing(mapPricingResponseToUi(data));
+    
+    setState("done");
+  } catch (e) {
+    setState("error");
+    setErrorMsg(e instanceof Error ? e.message : "Gagal menghitung pricing");
+    setPricing(null);
   }
+}
 
   async function fetchPawn(appraisalValue: number) {
     setPawnError(null);
@@ -395,6 +426,34 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
     }
   }
 
+  useEffect(() => {
+  const raw = (vehicle as any)?.defects;
+
+  if (!raw) {
+    setDefects([]);
+    return;
+  }
+
+  // kalau array string udah "desc (Severity)"
+  if (Array.isArray(raw) && typeof raw[0] === "string") {
+    setDefects(raw as string[]);
+    return;
+  }
+
+  // kalau array object {description, severity}
+  if (Array.isArray(raw)) {
+    const formatted = raw
+      .map((d: any) => {
+        const desc = d?.description ?? d?.label ?? "";
+        const sev = d?.severity ?? "Minor";
+        return desc ? `${desc} (${sev})` : null;
+      })
+      .filter(Boolean) as string[];
+
+    setDefects(formatted);
+  }
+}, [vehicle]);
+
   // Auto-call pricing on changes (debounced)
   useEffect(() => {
     if (!canCallPricing) {
@@ -413,7 +472,7 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canCallPricing, province, makeModel.make, makeModel.model, yearNum, overallGrade, tenorDays, useMock]);
+  }, [canCallPricing, province, makeModel.make, makeModel.model, yearNum, overallGrade,defects, tenorDays, useMock]);
 
   // Auto-call pawn after pricing ready (whenever appraisal/tenor changes)
   useEffect(() => {
@@ -433,6 +492,8 @@ export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated
       setTenorDays((v) => Math.min(Math.max(v, 1), 60));
     }
   }, [product, setTenorDays]);
+
+  
 
 
   const breakdown = pricing;
