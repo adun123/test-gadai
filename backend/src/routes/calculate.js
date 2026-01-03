@@ -6,6 +6,27 @@ const { calculateConditionScore } = require('../services/vehicleScanService');
 const { comparePawnProducts } = require('../services/pawnDecisionEngineService');
 const { summarizeDocuments } = require('../services/documentScanService');
 const { asyncHandler } = require('../middleware/errorHandler');
+const pricingCache = new Map();
+const PRICING_CACHE_TTL_MS = Number(
+  process.env.PRICING_CACHE_TTL_MS || 1000 * 60 * 60 // 1 jam
+);
+
+function getCached(key) {
+  const hit = pricingCache.get(key);
+  if (!hit) return null;
+  if (hit.exp < Date.now()) {
+    pricingCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function setCached(key, value) {
+  pricingCache.set(key, {
+    value,
+    exp: Date.now() + PRICING_CACHE_TTL_MS,
+  });
+}
 
 /**
  * @route POST /api/calculate/pricing
@@ -22,72 +43,161 @@ const pricingValidation = [
   body('physical_condition.defects').optional().isArray(),
   body('province').optional().isString()
 ];
+function makePricingCacheKey({
+  vehicle,
+  province,
+  conditionScore,
+  useMock,
+}) {
+  const fs = Number(conditionScore.final_score ?? 1).toFixed(3);
+  const dc = Number(conditionScore.defect_count ?? 0);
 
+  return [
+    useMock ? "MOCK" : "LIVE",
+    vehicle.make?.trim(),
+    vehicle.model?.trim(),
+    String(vehicle.year),
+    (province || "Indonesia").trim(),
+    `FS:${fs}`,
+    `DC:${dc}`,
+  ]
+    .join("|")
+    .toUpperCase();
+}
+
+
+function getCachedPricing(key) {
+  const now = Date.now();
+  const entry = pricingCache.get(key);
+  if (!entry) return null;
+  if (entry.exp <= now) {
+    pricingCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function setCachedPricing(key, value) {
+  const exp = Date.now() + PRICING_CACHE_TTL_MS;
+  pricingCache.set(key, { exp, value });
+}
 // helper sederhana: ambil severity dari string defects "Rust (Minor)"
 function parseSeverity(defectStr = "") {
   const m = String(defectStr).match(/\((Minor|Moderate|Major|Severe)\)/i);
   return m ? m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() : "Moderate";
 }
 
-router.post('/pricing', pricingValidation, asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
-  const { vehicle_identification, physical_condition, province } = req.body;
-  const useMock = req.query.mock === 'true' || process.env.USE_MOCK === 'true';
-  const tenorDays = Number(req.body.tenor_days ?? 30);
-
-  const conditionScore = physical_condition 
-    ? calculateConditionScore(physical_condition)
-    : { final_score: 1.0, defect_count: 0, base_score: 1.0, deduction: 0 };
-
-  const vehicleInfo = {
-    make: vehicle_identification.make,
-    model: vehicle_identification.model,
-    year: vehicle_identification.year || new Date().getFullYear() - 2,
-    vehicle_type: vehicle_identification.vehicle_type || 'Matic',
-    province: province || 'Indonesia',
-  };
-
-  const breakdown = await generatePricingBreakdown(
-    { make: vehicleInfo.make, model: vehicleInfo.model, year: vehicleInfo.year },
-    conditionScore,
-    vehicleInfo.province,
-    tenorDays
-  );
-
-  const pricingBreak = breakdown.pricing_breakdown || {};
-  const coll = breakdown.collateral_calculation || {};
-
-  res.json({
-    success: true,
-    message: 'Pricing calculated successfully. You can adjust values before proceeding to pawn simulation.',
-    data: {
-      vehicle: vehicleInfo,
-      condition: conditionScore,
-      pricing: {
-        market_price: pricingBreak.base_market_price?.value ?? 0,
-        price_range: pricingBreak.base_market_price?.range ?? null,
-        price_confidence: pricingBreak.base_market_price?.confidence ?? 'LOW',
-        data_points: pricingBreak.base_market_price?.data_points ?? 0,
-        condition_adjustment: conditionScore.final_score,
-        effective_collateral_value: coll.effective_collateral_value ?? 0,
-        appraisal_value: coll.appraisal_value ?? 0,
-        tenor_days: coll.tenor_days ?? tenorDays,
-      },
-      breakdown,
-      calculated_at: new Date().toISOString(),
-      is_editable: true,
-      editable_fields: ['appraisal_value', 'condition_adjustment'],
-    },
-    next_step: {
-      action: 'CALCULATE_PAWN',
-      description: 'Proceed to pawn simulation with current or adjusted appraisal value',
-      endpoint: 'POST /api/calculate/pawn'
+router.post(
+  "/pricing",
+  pricingValidation,
+  asyncHandler(async (req, res) => {
+    /* ---------- VALIDATION ---------- */
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      });
     }
-  });
+
+    /* ---------- INPUT NORMALIZATION ---------- */
+    const { vehicle_identification, physical_condition, province } = req.body;
+
+    const useMock =
+      req.query.mock === "true" || process.env.USE_MOCK === "true";
+
+    const tenorDays = Number(req.body.tenor_days ?? 30);
+
+    const vehicleInfo = {
+      make: vehicle_identification.make,
+      model: vehicle_identification.model,
+      year:
+        vehicle_identification.year || new Date().getFullYear() - 2,
+      vehicle_type: vehicle_identification.vehicle_type || "Matic",
+      province: (province || "Indonesia").trim(),
+    };
+
+    /* ---------- CONDITION SCORE (HITUNG SEKALI) ---------- */
+    const conditionScore = physical_condition
+      ? calculateConditionScore(physical_condition)
+      : {
+          final_score: 1.0,
+          defect_count: 0,
+          base_score: 1.0,
+          deduction: 0,
+        };
+
+    /* ---------- CACHE CHECK ---------- */
+    const cacheKey = makePricingCacheKey({
+      vehicle: vehicleInfo,
+      province: vehicleInfo.province,
+      conditionScore,
+      useMock,
+    });
+
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return res.json({
+        ...cached,
+        meta: { cached: true },
+      });
+    }
+
+    /* ---------- PRICING ENGINE ---------- */
+    const breakdown = await generatePricingBreakdown(
+      {
+        make: vehicleInfo.make,
+        model: vehicleInfo.model,
+        year: vehicleInfo.year,
+      },
+      conditionScore,
+      vehicleInfo.province,
+      tenorDays
+    );
+
+    const pricingBreak = breakdown.pricing_breakdown || {};
+    const coll = breakdown.collateral_calculation || {};
+
+    /* ---------- RESPONSE ---------- */
+    const response = {
+      success: true,
+      message:
+        "Pricing calculated successfully. You can adjust values before proceeding to pawn simulation.",
+      data: {
+        vehicle: vehicleInfo,
+        condition: conditionScore,
+        pricing: {
+          market_price:
+            pricingBreak.base_market_price?.value ?? 0,
+          price_range:
+            pricingBreak.base_market_price?.range ?? null,
+          price_confidence:
+            pricingBreak.base_market_price?.confidence ?? "LOW",
+          data_points:
+            pricingBreak.base_market_price?.data_points ?? 0,
+          condition_adjustment: conditionScore.final_score,
+          effective_collateral_value:
+            coll.effective_collateral_value ?? 0,
+          appraisal_value: coll.appraisal_value ?? 0,
+          tenor_days: coll.tenor_days ?? tenorDays,
+        },
+        breakdown,
+        calculated_at: new Date().toISOString(),
+        is_editable: true,
+        editable_fields: ["appraisal_value", "condition_adjustment"],
+      },
+      next_step: {
+        action: "CALCULATE_PAWN",
+        description:
+          "Proceed to pawn simulation with current or adjusted appraisal value",
+        endpoint: "POST /api/calculate/pawn",
+      },
+    };
+
+  // ====== CACHE: SET ======
+  setCachedPricing(cacheKey, response);
+
+  return res.json({ ...response, meta: { cached: false } });
 }));
 
 /**
