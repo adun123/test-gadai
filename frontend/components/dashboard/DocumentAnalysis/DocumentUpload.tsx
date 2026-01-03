@@ -72,9 +72,9 @@ export default function DocumentUploadCard({
     setFileName(file.name);
     try {
       await onUpload(file);
-    } catch (e: any) {
+    } catch (e: unknown) {
       // kalau parent lempar error, tampilkan dengan sopan
-      setError(e?.message || "Upload failed. Please try again.");
+      setError(e instanceof Error ? e.message : "Upload failed. Please try again.");
     }
   }
 

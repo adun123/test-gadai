@@ -210,16 +210,6 @@ function splitBrandModel(brandModel?: string): { make: string; model: string } {
   return { make, model };
 }
 
-
-function parseProvince(location: string): string {
-  // UI kamu input "Jakarta Selatan, DKI Jakarta"
-  // backend minta "province"
-  const pieces = location.split(",").map((x) => x.trim()).filter(Boolean);
-  if (pieces.length >= 2) return pieces[1];
-  return pieces[0] || "Indonesia";
-
-}
-
 function confidenceToNumber(label?: string): number {
   // fallback kalau backend belum kasih score
   if (!label) return 0.75;
@@ -285,8 +275,8 @@ function mapPricingResponseToUi(resp: PricingApiResponse): UiBreakdown | null {
     tenorDays: coll?.tenor_days ?? pricing.tenor_days,
   };
 }
-export default function PricingCard({ vehicleReady, vehicle, onPricingCalculated }: Props) {
-  const [location, setLocation] = useState("Jakarta Selatan, DKI Jakarta");
+export default function PricingCard({ vehicleReady, vehicle }: Props) {
+  // const [location, setLocation] = useState("Jakarta Selatan, DKI Jakarta");
   const [tenorDays, setTenorDays] = useState(30);
   const [product, setProduct] = useState<PawnProduct>("reguler");
 
@@ -427,7 +417,7 @@ async function fetchPricing() {
   }
 
   useEffect(() => {
-  const raw = (vehicle as any)?.defects;
+  const raw = vehicle?.defects;
 
   if (!raw) {
     setDefects([]);
@@ -443,7 +433,7 @@ async function fetchPricing() {
   // kalau array object {description, severity}
   if (Array.isArray(raw)) {
     const formatted = raw
-      .map((d: any) => {
+      .map((d: { description?: string; label?: string; severity?: string }) => {
         const desc = d?.description ?? d?.label ?? "";
         const sev = d?.severity ?? "Minor";
         return desc ? `${desc} (${sev})` : null;
