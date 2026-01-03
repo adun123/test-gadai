@@ -61,7 +61,7 @@ type PricingApiResponse = {
     calculated_at?: string;
   };
   error?: string;
-  errors?: Array<{ msg?: string; [key: string]: unknown }>;
+  errors?: Array<{ msg?: string;[key: string]: unknown }>;
 };
 
 type PawnApiResponse = {
@@ -83,7 +83,7 @@ type PawnApiResponse = {
     calculated_at?: string;
   };
   error?: string;
-  errors?: Array<{ msg?: string; [key: string]: unknown }>;
+  errors?: Array<{ msg?: string;[key: string]: unknown }>;
 };
 
 type UiBreakdown = {
@@ -283,7 +283,7 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
   const [useMock, setUseMock] = useState(false);
 
 
-  const [province, setProvince] = useState<string>("Jawa Barat"); 
+  const [province, setProvince] = useState<string>("Jawa Barat");
 
   const [state, setState] = useState<"idle" | "processing" | "done" | "error">("idle");
   const isLoading = state === "processing";
@@ -298,7 +298,7 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
 
   const debounceRef = useRef<number | null>(null);
 
- 
+
   const safeBrandModel =
     typeof vehicle?.brandModel === "string" ? vehicle.brandModel : "";
 
@@ -313,68 +313,68 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
   const [defects, setDefects] = useState<string[]>([]);
 
   const canCallPricing = vehicleReady && !!makeModel.make && !!makeModel.model;
-  
-
-async function fetchPricing() {
-  if (!canCallPricing) return;
-
-  setErrorMsg(null);
-  setState("processing");
-
-  try {
-    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-    const url = `${base}/api/calculate/pricing${useMock ? "?mock=true" : ""}`;
-
-    const body = {
-      vehicle_identification: {
-        make: makeModel.make,
-        model: makeModel.model,
-        year: yearNum,
-        vehicle_type: "Matic",
-      },
-      physical_condition: {
-        overall_grade: overallGrade,
-        defects, // ✅ ini penting
-      },
-      province,
-      tenor_days: tenorDays,
-    };
- 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
 
 
-    const data = (await res.json()) as PricingApiResponse;
+  async function fetchPricing() {
+    if (!canCallPricing) return;
 
-    // console.log("RAW pricing response:", data);
-    // console.log("RAW breakdown.pricing_breakdown:", data?.data?.breakdown?.pricing_breakdown);
-    // console.log("RAW condition_adjustment:", data?.data?.breakdown?.pricing_breakdown?.condition_adjustment);
-    // console.log("DEFECTS SENT:", defects);
+    setErrorMsg(null);
+    setState("processing");
 
-    if (!res.ok || !data.success) {
-      const msg =
-        data?.error ||
-        (Array.isArray(data?.errors) ? data.errors?.[0]?.msg : null) ||
-        `Request failed (HTTP ${res.status})`;
-      throw new Error(msg);
+    try {
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+      const url = `${base}/api/calculate/pricing${useMock ? "?mock=true" : ""}`;
+
+      const body = {
+        vehicle_identification: {
+          make: makeModel.make,
+          model: makeModel.model,
+          year: yearNum,
+          vehicle_type: "Matic",
+        },
+        physical_condition: {
+          overall_grade: overallGrade,
+          defects, // ✅ ini penting
+        },
+        province,
+        tenor_days: tenorDays,
+      };
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+
+      const data = (await res.json()) as PricingApiResponse;
+
+      // console.log("RAW pricing response:", data);
+      // console.log("RAW breakdown.pricing_breakdown:", data?.data?.breakdown?.pricing_breakdown);
+      // console.log("RAW condition_adjustment:", data?.data?.breakdown?.pricing_breakdown?.condition_adjustment);
+      // console.log("DEFECTS SENT:", defects);
+
+      if (!res.ok || !data.success) {
+        const msg =
+          data?.error ||
+          (Array.isArray(data?.errors) ? data.errors?.[0]?.msg : null) ||
+          `Request failed (HTTP ${res.status})`;
+        throw new Error(msg);
+      }
+      const mapped = mapPricingResponseToUi(data);
+
+      // console.log("PB:", data?.data?.breakdown?.pricing_breakdown);
+      // console.log("COND:", data?.data?.breakdown?.pricing_breakdown?.condition_adjustment);
+      // console.log("MAPPED UI breakdown:", mapped);
+      setPricing(mapped);
+
+      setState("done");
+    } catch (e) {
+      setState("error");
+      setErrorMsg(e instanceof Error ? e.message : "Gagal menghitung pricing");
+      setPricing(null);
     }
-    const mapped = mapPricingResponseToUi(data);
-
-    // console.log("PB:", data?.data?.breakdown?.pricing_breakdown);
-    // console.log("COND:", data?.data?.breakdown?.pricing_breakdown?.condition_adjustment);
-    // console.log("MAPPED UI breakdown:", mapped);
-    setPricing(mapped);
-
-    setState("done");
-  } catch (e) {
-    setState("error");
-    setErrorMsg(e instanceof Error ? e.message : "Gagal menghitung pricing");
-    setPricing(null);
   }
-}
 
   async function fetchPawn(appraisalValue: number) {
     setPawnError(null);
@@ -417,32 +417,32 @@ async function fetchPricing() {
   }
 
   useEffect(() => {
-  const raw = vehicle?.defects;
+    const raw = vehicle?.defects;
 
-  if (!raw) {
-    setDefects([]);
-    return;
-  }
+    if (!raw) {
+      setDefects([]);
+      return;
+    }
 
-  // kalau array string udah "desc (Severity)"
-  if (Array.isArray(raw) && typeof raw[0] === "string") {
-    setDefects(raw as string[]);
-    return;
-  }
+    // kalau array string udah "desc (Severity)"
+    if (Array.isArray(raw) && typeof raw[0] === "string") {
+      setDefects(raw as string[]);
+      return;
+    }
 
-  // kalau array object {description, severity}
-  if (Array.isArray(raw)) {
-    const formatted = raw
-      .map((d: { description?: string; label?: string; severity?: string }) => {
-        const desc = d?.description ?? d?.label ?? "";
-        const sev = d?.severity ?? "Minor";
-        return desc ? `${desc} (${sev})` : null;
-      })
-      .filter(Boolean) as string[];
+    // kalau array object {description, severity}
+    if (Array.isArray(raw)) {
+      const formatted = raw
+        .map((d: { description?: string; label?: string; severity?: string }) => {
+          const desc = d?.description ?? d?.label ?? "";
+          const sev = d?.severity ?? "Minor";
+          return desc ? `${desc} (${sev})` : null;
+        })
+        .filter(Boolean) as string[];
 
-    setDefects(formatted);
-  }
-}, [vehicle]);
+      setDefects(formatted);
+    }
+  }, [vehicle]);
 
   // Auto-call pricing on changes (debounced)
   useEffect(() => {
@@ -462,7 +462,7 @@ async function fetchPricing() {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canCallPricing, province, makeModel.make, makeModel.model, yearNum, overallGrade,defects, tenorDays, useMock]);
+  }, [canCallPricing, province, makeModel.make, makeModel.model, yearNum, overallGrade, defects, tenorDays, useMock]);
 
   // Auto-call pawn after pricing ready (whenever appraisal/tenor changes)
   useEffect(() => {
@@ -483,7 +483,7 @@ async function fetchPricing() {
     }
   }, [product, setTenorDays]);
 
-  
+
 
 
   const breakdown = pricing;
@@ -530,12 +530,12 @@ async function fetchPricing() {
 
         <PricingAlerts errorMsg={errorMsg} isLoading={isLoading} />
 
-      <PricingLocation
-        vehicleReady={vehicleReady}
-        province={province}
-        setProvince={setProvince}
-        provinces={VALID_PROVINCES}
-      />
+        <PricingLocation
+          vehicleReady={vehicleReady}
+          province={province}
+          setProvince={setProvince}
+          provinces={VALID_PROVINCES}
+        />
 
 
 
@@ -549,7 +549,7 @@ async function fetchPricing() {
           setTenorDays={setTenorDays}
         />
 
-       
+
         <PawnSimulation
           vehicleReady={vehicleReady}
           pawnError={pawnError}
@@ -570,7 +570,7 @@ async function fetchPricing() {
             vehicle={vehicle}
             breakdown={breakdown}
             pawnSim={pawnSim}
-            location={location}
+            location={province}
             tenorDays={tenorDays}
             product={product}
           />
