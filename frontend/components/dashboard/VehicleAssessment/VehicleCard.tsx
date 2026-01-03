@@ -95,7 +95,7 @@ export default function VehicleCard({
 }: {
   onAnalyzed?: (v: VehicleAnalyzedPayload) => void;
 }) {
-  console.log("VehicleCard rendered");
+  // console.log("VehicleCard rendered");
   const [state, setState] = useState<State>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [defects, setDefects] = useState<DefectItem[]>([]);
@@ -136,7 +136,7 @@ export default function VehicleCard({
   //integrasi handleupload
   async function handleUpload(files: File[]) {
 
-    console.log("VehicleCard handleUpload called:", files?.map(f => f.name));
+    // console.log("VehicleCard handleUpload called:", files?.map(f => f.name));
 
     setErrorMsg(null);
     setEditMode(false);
