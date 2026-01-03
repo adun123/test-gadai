@@ -10,6 +10,8 @@ out/
 .env.development
 .env*.local
 
+.claude/
+
 uploads/*
 !uploads/.gitkeep
 
