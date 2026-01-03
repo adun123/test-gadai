@@ -3,6 +3,65 @@ const { getModel } = require('../config/gemini');
 const SHORT_TERM_DEPRECIATION_RATE = 0.005;
 const DEFAULT_LTV_POLICY = 0.75;
 
+// JSON Schema for market price search response
+const MARKET_PRICE_SCHEMA = {
+  type: "object",
+  properties: {
+    make: {
+      type: "string",
+      description: "Manufacturer brand"
+    },
+    model: {
+      type: "string",
+      description: "Model name"
+    },
+    year: {
+      type: "integer",
+      description: "Vehicle year"
+    },
+    province: {
+      type: "string",
+      description: "Province/location"
+    },
+    price_range: {
+      type: "object",
+      properties: {
+        low: {
+          type: "number",
+          description: "Lowest price in IDR"
+        },
+        high: {
+          type: "number",
+          description: "Highest price in IDR"
+        }
+      },
+      required: ["low", "high"]
+    },
+    average_price: {
+      type: "number",
+      description: "Average market price in IDR"
+    },
+    data_points: {
+      type: "integer",
+      description: "Number of data points used for analysis"
+    },
+    confidence: {
+      type: "string",
+      description: "Confidence level: HIGH, MEDIUM, or LOW"
+    },
+    market_analysis: {
+      type: "string",
+      description: "Brief explanation of price determination"
+    },
+    sources: {
+      type: "array",
+      items: { type: "string" },
+      description: "List of sources used"
+    }
+  },
+  required: ["make", "model", "year", "average_price", "confidence"]
+};
+
 const PRICE_SEARCH_PROMPT = `You are a motorcycle market price researcher in Indonesia. Your task is to find the current used/second-hand market price.
 
 Vehicle Details:
@@ -13,23 +72,6 @@ Vehicle Details:
 
 Search for prices from Indonesian marketplaces like OLX, Facebook Marketplace, or dealer websites. Prioritize listings from [PROVINCE] or nearby areas.
 
-Analyze the search results and return ONLY a valid JSON object:
-{
-  "make": "string",
-  "model": "string",
-  "year": number,
-  "province": "string",
-  "price_range": {
-    "low": number,
-    "high": number
-  },
-  "average_price": number,
-  "data_points": number,
-  "confidence": "HIGH" | "MEDIUM" | "LOW",
-  "market_analysis": "brief explanation of how price was determined",
-  "sources": ["list of sources found"]
-}
-
 Guidelines:
 - Prices should be in Indonesian Rupiah (IDR)
 - Filter out unrealistic outliers
@@ -39,7 +81,7 @@ Guidelines:
 
 async function searchMarketPrice(makeOrVehicleInfo, model, year, province = 'Indonesia') {
   let make, vehicleModel, vehicleYear, vehicleProvince;
-  
+
   if (typeof makeOrVehicleInfo === 'object') {
     make = makeOrVehicleInfo.make;
     vehicleModel = makeOrVehicleInfo.model;
@@ -66,30 +108,22 @@ async function searchMarketPrice(makeOrVehicleInfo, model, year, province = 'Ind
       generationConfig: {
         temperature: 0.1,
         topP: 0.8,
-        topK: 40
+        topK: 40,
+        responseMimeType: 'application/json',
+        responseSchema: MARKET_PRICE_SCHEMA
       },
       tools: [{ googleSearch: {} }]
     });
 
     const response = await result.response;
     const text = response.text();
+    const parsed = JSON.parse(text);
 
-    const jsonMatch = text.match(/\{[\s\S]*?\}(?=\s*$|\s*[^,\]\}])/);
-    if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return {
-          success: true,
-          ...parsed,
-          source: 'google_search'
-        };
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError.message);
-        return getFallbackEstimate(make, vehicleModel, vehicleYear);
-      }
-    }
-
-    return getFallbackEstimate(make, vehicleModel, vehicleYear);
+    return {
+      success: true,
+      ...parsed,
+      source: 'google_search'
+    };
   } catch (error) {
     console.error('Market price search failed:', error.message);
     return getFallbackEstimate(make, vehicleModel, vehicleYear);
