@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Sun, Moon, Monitor, Bell, User } from "lucide-react";
+import Image from "next/image";
 
 type Theme = "system" | "light" | "dark";
 
@@ -93,18 +94,25 @@ export default function TopBar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         {/* Left */}
         <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-transform group-hover:scale-105">
-              {/* Abstract Scale/Logo Icon */}
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 3v18" />
-                <path d="M6 8l-4 4 4 4" />
-                <path d="M18 8l4 4-4 4" />
-              </svg>
+        <Link href="/" className="flex items-center gap-3 group">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary shadow-lg shadow-primary/20 transition-transform group-hover:scale-105 overflow-hidden">
+              <Image
+                src="/pegadaian_logo.png"
+                alt="Pegadaian Logo"
+                width={24}
+                height={24}
+                className="object-contain"
+                priority
+              />
             </div>
+
             <div className="flex flex-col">
-              <span className="text-base font-extrabold tracking-tight text-foreground leading-none">Pegadaian</span>
-              <span className="text-xs font-medium text-muted-foreground tracking-wide">AI PREDICTION</span>
+              <span className="text-base font-extrabold tracking-tight text-foreground leading-none">
+                Pegadaian
+              </span>
+              <span className="text-xs font-medium text-muted-foreground tracking-wide">
+                AI PREDICTION
+              </span>
             </div>
           </Link>
 
