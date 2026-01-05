@@ -189,8 +189,21 @@ function validateAndBuild(files: File[]) {
 
               <div className="min-w-0">
                 <p className="text-sm font-extrabold text-primary">
-                  Upload / Ambil Foto Motor
+                  <span
+                    className="
+                      relative inline-block cursor-pointer
+                      transition-all duration-200
+                      hover:translate-x-0.5
+                      after:absolute after:left-0 after:-bottom-0.5
+                      after:h-0.5 after:w-0 after:bg-current
+                      after:transition-all after:duration-200
+                      hover:after:w-full
+                    "
+                  >
+                    Upload / Ambil Foto Motor
+                  </span>
                 </p>
+
                 <p className="mt-1 text-xs text-muted-foreground">
                   Drag & drop atau klik • {minFiles}-{maxFiles} foto • max {maxSizeMB}MB/foto
                 </p>
