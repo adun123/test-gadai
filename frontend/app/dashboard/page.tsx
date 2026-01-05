@@ -18,7 +18,9 @@ type VehiclePayload = {
   brandModel?: string;
   year?: string;
   physicalCondition?: VehicleCondition;
+  defects?: string[]; 
 };
+
 
 export default function DashboardPage() {
   const [vehicle, setVehicle] = useState<VehiclePayload | null>(null);
@@ -35,16 +37,28 @@ export default function DashboardPage() {
       <DashboardGrid>
         <DocumentCard />
 
-        <VehicleCard
-          onAnalyzed={(v) => {
-            const normalized: VehiclePayload = {
-              brandModel: (v?.brandModel || "").trim(),
-              year: (v?.year || "").toString().trim(),
-              physicalCondition: v?.physicalCondition,
-            };
-            setVehicle(normalized);
-          }}
-        />
+ <VehicleCard
+  onAnalyzed={(v) => {
+    const brandModel = (v?.brandModel || "").trim();
+
+    // kalau reset / kosong, bener-bener hapus kendaraan
+    if (!brandModel) {
+      setVehicle(null);
+      return;
+    }
+
+    const normalized: VehiclePayload = {
+      brandModel,
+      year: String(v?.year || "").trim(),
+      physicalCondition: v?.physicalCondition,
+      defects: Array.isArray((v as any)?.defects) ? (v as any).defects : [],
+    };
+
+    setVehicle(normalized);
+  }}
+/>
+
+
 
         <PricingCard vehicleReady={vehicleReady} vehicle={vehicle ?? undefined} />
       </DashboardGrid>
