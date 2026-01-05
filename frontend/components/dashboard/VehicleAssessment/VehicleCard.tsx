@@ -21,55 +21,18 @@ type VehicleScanApiResponse = {
   error?: string;
 };
 
-type Sev = "minor" | "moderate" | "major" | "unknown";
-
-function extractSeverity(text: string): Sev {
-  const m = text.match(/\((minor|moderate|major)\)/i);
-  if (!m) return "unknown";
-  const s = m[1].toLowerCase();
-  if (s === "minor") return "minor";
-  if (s === "moderate") return "moderate";
-  if (s === "major") return "major";
-  return "unknown";
-}
-
-function computeFinalScoreFromDefects(defects: string[]): number {
-  // penalti sederhana (silakan tweak)
-  const weight: Record<Sev, number> = {
-    minor: 0.02,
-    moderate: 0.06,
-    major: 0.12,
-    unknown: 0.04,
-  };
-
-  const penalty = defects.reduce((sum, d) => sum + weight[extractSeverity(d)], 0);
-
-  // mulai dari 1.0, dikurangi penalti, clamp 0.3..1.0 biar gak ekstrem
-  const score = 1.0 - penalty;
-  return Math.max(0.3, Math.min(1.0, score));
-}
-
-
 function mapVehicleScanToUI(payload: any): { form: VehicleForm; notes: string; defects: DefectItem[] } {
   const s = payload ?? {};
   const vid = s.vehicle_identification ?? {};
   const pc = s.physical_condition ?? {};
-
+  const cs = s.conditionScore ?? {};
 
   const brandModel = [vid.make, vid.model].filter(Boolean).join(" ").trim();
   const plateNumber = vid.license_plate ?? "";
   const year = vid.estimated_year ?? vid.year ?? "";
 
-const cs = s.conditionScore ?? {}; // tetap support kalau backend suatu saat ngirim
-const rawDefects: string[] = Array.isArray(pc.defects) ? pc.defects : [];
-
-const finalScore =
-  typeof cs.final_score === "number"
-    ? cs.final_score
-    : rawDefects.length
-      ? computeFinalScoreFromDefects(rawDefects)
-      : (typeof s.confidence === "number" ? s.confidence : 0.85); // fallback terakhir
-
+  // Map condition score (0.30-1.0) to UI grade labels
+  const finalScore = cs.final_score ?? 1.0;
   const physicalCondition: VehicleCondition =
     finalScore >= 0.90 ? "Mulus (Grade A)"
       : finalScore >= 0.70 ? "Normal (Grade B)"

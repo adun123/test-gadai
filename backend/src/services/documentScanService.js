@@ -1,65 +1,169 @@
 const { getModel } = require('../config/gemini');
 
-const SLIK_SCAN_PROMPT = `You are a document OCR specialist. First, verify if this is a SLIK OJK (credit report) document.
-
-If this is NOT a SLIK document (e.g., salary slip, KTP, or other document), return:
-{
-  "is_valid_document": false,
-  "detected_type": "type of document you see",
-  "error": "This is not a SLIK document"
-}
-
-If this IS a SLIK document, extract all visible information and return:
-{
-  "is_valid_document": true,
-  "full_name": "extracted name",
-  "credit_status": "Lancar/Dalam Perhatian Khusus/Kurang Lancar/Diragukan/Macet",
-  "collectibility": number (1-5),
-  "total_credit_facilities": number,
-  "existing_loans": [
-    {
-      "creditor": "bank/institution name",
-      "type": "loan type",
-      "outstanding": number,
-      "status": "status"
+// JSON Schema for SLIK document (valid document)
+const SLIK_VALID_SCHEMA = {
+  type: "object",
+  properties: {
+    is_valid_document: {
+      type: "boolean",
+      description: "Whether this is a valid SLIK document"
+    },
+    detected_type: {
+      type: "string",
+      description: "Type of document detected if not SLIK",
+      nullable: true
+    },
+    error: {
+      type: "string",
+      description: "Error message if not a valid SLIK document",
+      nullable: true
+    },
+    full_name: {
+      type: "string",
+      description: "Full name of the person",
+      nullable: true
+    },
+    credit_status: {
+      type: "string",
+      description: "Credit status: Lancar, Dalam Perhatian Khusus, Kurang Lancar, Diragukan, or Macet",
+      nullable: true
+    },
+    collectibility: {
+      type: "integer",
+      description: "Collectibility score from 1 to 5",
+      nullable: true
+    },
+    total_credit_facilities: {
+      type: "integer",
+      description: "Total number of credit facilities",
+      nullable: true
+    },
+    existing_loans: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          creditor: { type: "string", description: "Bank or institution name" },
+          type: { type: "string", description: "Loan type" },
+          outstanding: { type: "number", description: "Outstanding amount" },
+          status: { type: "string", description: "Loan status" }
+        }
+      },
+      description: "List of existing loans",
+      nullable: true
+    },
+    last_updated: {
+      type: "string",
+      description: "Last update date",
+      nullable: true
+    },
+    confidence: {
+      type: "number",
+      description: "Confidence score between 0 and 1"
     }
-  ],
-  "last_updated": "date if visible",
-  "confidence": number (0-1)
-}
-
-If a field is not visible or unclear, set it to null.`;
-
-const SALARY_SLIP_SCAN_PROMPT = `You are a document OCR specialist. First, verify if this is a salary slip (slip gaji) document.
-
-If this is NOT a salary slip (e.g., SLIK, KTP, or other document), return:
-{
-  "is_valid_document": false,
-  "detected_type": "type of document you see",
-  "error": "This is not a salary slip document"
-}
-
-If this IS a salary slip, extract all visible information and return:
-{
-  "is_valid_document": true,
-  "full_name": "employee name",
-  "employee_id": "ID if visible",
-  "company_name": "company name",
-  "position": "job position",
-  "department": "department if visible",
-  "employment_status": "Karyawan Tetap/Kontrak/Honorer/etc",
-  "pay_period": "month/year",
-  "gross_income": number,
-  "deductions": {
-    "tax": number,
-    "bpjs": number,
-    "other": number
   },
-  "net_income": number,
-  "confidence": number (0-1)
-}
+  required: ["is_valid_document", "confidence"]
+};
 
-If a field is not visible or unclear, set it to null.`;
+// JSON Schema for Salary Slip document
+const SALARY_SLIP_SCHEMA = {
+  type: "object",
+  properties: {
+    is_valid_document: {
+      type: "boolean",
+      description: "Whether this is a valid salary slip document"
+    },
+    detected_type: {
+      type: "string",
+      description: "Type of document detected if not salary slip",
+      nullable: true
+    },
+    error: {
+      type: "string",
+      description: "Error message if not a valid salary slip",
+      nullable: true
+    },
+    full_name: {
+      type: "string",
+      description: "Employee full name",
+      nullable: true
+    },
+    employee_id: {
+      type: "string",
+      description: "Employee ID",
+      nullable: true
+    },
+    company_name: {
+      type: "string",
+      description: "Company name",
+      nullable: true
+    },
+    position: {
+      type: "string",
+      description: "Job position",
+      nullable: true
+    },
+    department: {
+      type: "string",
+      description: "Department",
+      nullable: true
+    },
+    employment_status: {
+      type: "string",
+      description: "Employment status: Karyawan Tetap, Kontrak, Honorer, etc.",
+      nullable: true
+    },
+    pay_period: {
+      type: "string",
+      description: "Pay period (month/year)",
+      nullable: true
+    },
+    gross_income: {
+      type: "number",
+      description: "Gross income amount",
+      nullable: true
+    },
+    deductions: {
+      type: "object",
+      properties: {
+        tax: { type: "number", description: "Tax deduction", nullable: true },
+        bpjs: { type: "number", description: "BPJS deduction", nullable: true },
+        other: { type: "number", description: "Other deductions", nullable: true }
+      },
+      nullable: true
+    },
+    net_income: {
+      type: "number",
+      description: "Net income (take home pay)",
+      nullable: true
+    },
+    confidence: {
+      type: "number",
+      description: "Confidence score between 0 and 1"
+    }
+  },
+  required: ["is_valid_document", "confidence"]
+};
+
+const SLIK_SCAN_PROMPT = `You are a document OCR specialist. Analyze this document image.
+
+First, verify if this is a SLIK OJK (credit report) document.
+- If NOT a SLIK document, set is_valid_document to false and provide detected_type and error.
+- If it IS a SLIK document, set is_valid_document to true and extract all visible information.
+
+For SLIK documents, extract: full_name, credit_status (Lancar/Dalam Perhatian Khusus/Kurang Lancar/Diragukan/Macet), collectibility (1-5), total_credit_facilities, existing_loans array, and last_updated date.
+
+Set any unclear or invisible fields to null.`;
+
+const SALARY_SLIP_SCAN_PROMPT = `You are a document OCR specialist. Analyze this document image.
+
+First, verify if this is a salary slip (slip gaji) document.
+- If NOT a salary slip, set is_valid_document to false and provide detected_type and error.
+- If it IS a salary slip, set is_valid_document to true and extract all visible information.
+
+For salary slips, extract: full_name, employee_id, company_name, position, department, employment_status (Karyawan Tetap/Kontrak/Honorer/etc), pay_period, gross_income, deductions (tax, bpjs, other), and net_income.
+
+Set any unclear or invisible fields to null.`;
 
 async function scanSlikDocument(fileBuffer, mimeType = 'image/jpeg') {
   try {
@@ -72,39 +176,34 @@ async function scanSlikDocument(fileBuffer, mimeType = 'image/jpeg') {
       }
     };
 
-    const result = await model.generateContent([SLIK_SCAN_PROMPT, filePart]);
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: SLIK_SCAN_PROMPT }, filePart] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: SLIK_VALID_SCHEMA
+      }
+    });
+
     const response = await result.response;
     const text = response.text();
+    const parsed = JSON.parse(text);
 
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      
-      // Check if document type is valid
-      if (parsed.is_valid_document === false) {
-        return {
-          success: false,
-          document_type: 'SLIK',
-          detected_type: parsed.detected_type,
-          error: parsed.error || 'Wrong document type uploaded',
-          scanned_at: new Date().toISOString()
-        };
-      }
-      
+    // Check if document type is valid
+    if (parsed.is_valid_document === false) {
       return {
-        success: true,
+        success: false,
         document_type: 'SLIK',
-        scanned_data: parsed,
-        scanned_at: new Date().toISOString(),
-        is_editable: true
+        detected_type: parsed.detected_type,
+        error: parsed.error || 'Wrong document type uploaded',
+        scanned_at: new Date().toISOString()
       };
     }
 
     return {
-      success: false,
+      success: true,
       document_type: 'SLIK',
-      scanned_data: null,
-      error: 'Failed to parse document',
+      scanned_data: parsed,
+      scanned_at: new Date().toISOString(),
       is_editable: true
     };
   } catch (error) {
@@ -129,39 +228,34 @@ async function scanSalarySlipDocument(fileBuffer, mimeType = 'image/jpeg') {
       }
     };
 
-    const result = await model.generateContent([SALARY_SLIP_SCAN_PROMPT, filePart]);
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: SALARY_SLIP_SCAN_PROMPT }, filePart] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: SALARY_SLIP_SCHEMA
+      }
+    });
+
     const response = await result.response;
     const text = response.text();
+    const parsed = JSON.parse(text);
 
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      
-      // Check if document type is valid
-      if (parsed.is_valid_document === false) {
-        return {
-          success: false,
-          document_type: 'SALARY_SLIP',
-          detected_type: parsed.detected_type,
-          error: parsed.error || 'Wrong document type uploaded',
-          scanned_at: new Date().toISOString()
-        };
-      }
-      
+    // Check if document type is valid
+    if (parsed.is_valid_document === false) {
       return {
-        success: true,
+        success: false,
         document_type: 'SALARY_SLIP',
-        scanned_data: parsed,
-        scanned_at: new Date().toISOString(),
-        is_editable: true
+        detected_type: parsed.detected_type,
+        error: parsed.error || 'Wrong document type uploaded',
+        scanned_at: new Date().toISOString()
       };
     }
 
     return {
-      success: false,
+      success: true,
       document_type: 'SALARY_SLIP',
-      scanned_data: null,
-      error: 'Failed to parse document',
+      scanned_data: parsed,
+      scanned_at: new Date().toISOString(),
       is_editable: true
     };
   } catch (error) {

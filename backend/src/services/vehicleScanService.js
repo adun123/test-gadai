@@ -1,22 +1,66 @@
 const { getVisionModel } = require('../config/gemini');
 
-const VEHICLE_SCAN_PROMPT = `You are an expert motorcycle appraiser. Scan this motorcycle image and extract all identifiable information.
+// JSON Schema for structured output
+const VEHICLE_SCAN_SCHEMA = {
+  type: "object",
+  properties: {
+    vehicle_identification: {
+      type: "object",
+      properties: {
+        vehicle_type: {
+          type: "string",
+          description: "Type of motorcycle: Manual, Matic, Sport, Vespa, Trail, Cruiser, Electric, or Unknown"
+        },
+        make: {
+          type: "string",
+          description: "Manufacturer brand: Honda, Yamaha, Kawasaki, Suzuki, Vespa, etc.",
+          nullable: true
+        },
+        model: {
+          type: "string",
+          description: "Specific model name",
+          nullable: true
+        },
+        color: {
+          type: "string",
+          description: "Primary color of the vehicle"
+        },
+        license_plate: {
+          type: "string",
+          description: "License plate number if visible",
+          nullable: true
+        },
+        estimated_year: {
+          type: "string",
+          description: "Estimated year or year range",
+          nullable: true
+        }
+      },
+      required: ["vehicle_type", "color"]
+    },
+    physical_condition: {
+      type: "object",
+      properties: {
+        defects: {
+          type: "array",
+          items: {
+            type: "string",
+            description: "Defect description with severity in format: 'Description (Severity)' where Severity is Minor, Moderate, Major, or Severe"
+          },
+          description: "List of visible defects with severity levels"
+        }
+      },
+      required: ["defects"]
+    },
+    confidence: {
+      type: "number",
+      description: "Confidence score between 0 and 1"
+    }
+  },
+  required: ["vehicle_identification", "physical_condition", "confidence"]
+};
 
-Return ONLY a valid JSON object with this structure:
-{
-  "vehicle_identification": {
-    "vehicle_type": "Manual/Matic/Sport/Vespa/Trail/Cruiser/Electric/Unknown",
-    "make": "Honda/Yamaha/Kawasaki/Suzuki/Vespa/etc or null",
-    "model": "specific model name or null",
-    "color": "primary color",
-    "license_plate": "plate number if visible or null",
-    "estimated_year": "estimated year range or null"
-  },
-  "physical_condition": {
-    "defects": ["defect 1 (severity)", "defect 2 (severity)"]
-  },
-  "confidence": number (0-1)
-}
+const VEHICLE_SCAN_PROMPT = `You are an expert motorcycle appraiser. Scan this motorcycle image and extract all identifiable information.
 
 IMPORTANT: For defects array, list EACH visible defect with its severity level in parentheses.
 Severity levels:
@@ -41,23 +85,22 @@ async function scanVehicleImages(imageBuffers) {
     }));
 
     const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: VEHICLE_SCAN_PROMPT }, ...imageParts] }]
+      contents: [{ role: 'user', parts: [{ text: VEHICLE_SCAN_PROMPT }, ...imageParts] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: VEHICLE_SCAN_SCHEMA
+      }
     });
 
     const response = await result.response;
     const text = response.text();
+    const parsed = JSON.parse(text);
 
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        ...parsed,
-        images_processed: imageBuffers.length,
-        scanned_at: new Date().toISOString()
-      };
-    }
-
-    return { error: 'Failed to parse vehicle scan' };
+    return {
+      ...parsed,
+      images_processed: imageBuffers.length,
+      scanned_at: new Date().toISOString()
+    };
   } catch (error) {
     return { error: error.message };
   }
@@ -117,7 +160,7 @@ function calculateConditionScore(physicalCondition, overrides = {}) {
 
   // Mulai dari 100%
   const baseScore = 1.0;
-  
+
   // Parse defects dari array string format "description (Severity)"
   const defectsRaw = physicalCondition.defects || [];
   const defectsApplied = [];
@@ -130,14 +173,14 @@ function calculateConditionScore(physicalCondition, overrides = {}) {
       const description = match[1].trim();
       const severity = match[2];
       const deduction = SEVERITY_DEDUCTIONS[severity] || 0.03;
-      
+
       defectsApplied.push({
         description,
         severity,
         deduction: deduction,
         deduction_percent: `${(deduction * 100).toFixed(0)}%`
       });
-      
+
       totalDeduction += deduction;
     } else {
       // Jika format tidak sesuai, anggap Minor

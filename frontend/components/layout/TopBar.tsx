@@ -12,7 +12,13 @@ export default function TopBar() {
   const router = useRouter();
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [theme, setTheme] = useState<Theme>("system");
+
+  // Lazy initialization: read theme from localStorage once on mount
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "system";
+    const stored = localStorage.getItem("theme") as Theme;
+    return (stored && ["system", "light", "dark"].includes(stored)) ? stored : "system";
+  });
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -21,15 +27,6 @@ export default function TopBar() {
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Initialize theme from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem("theme") as Theme;
-    if (stored && ["system", "light", "dark"].includes(stored)) {
-      setTheme(stored);
-      applyTheme(stored);
-    }
   }, []);
 
   const applyTheme = (newTheme: Theme) => {
@@ -44,6 +41,12 @@ export default function TopBar() {
       localStorage.setItem("theme", newTheme);
     }
   };
+
+  // Apply theme on mount
+  useEffect(() => {
+    applyTheme(theme);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleTheme = () => {
     const themeOrder: Theme[] = ["system", "light", "dark"];

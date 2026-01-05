@@ -16,14 +16,42 @@ function formatCurrency(value: number | undefined): string | null {
 }
 
 // Helper to check if value is non-empty
-function hasValue(value: any): boolean {
+function hasValue(value: unknown): boolean {
     if (value === undefined || value === null) return false;
     if (typeof value === 'string' && value.trim() === '') return false;
     if (typeof value === 'number' && isNaN(value)) return false;
     return true;
 }
 
-export async function generateAssessmentPDF(data: any) {
+type VehicleData = {
+    brandModel?: string;
+    plateNumber?: string;
+    year?: string;
+    physicalCondition?: string;
+};
+
+type PricingData = {
+    location?: string;
+    basePrice?: number;
+    adjustment?: number;
+    assetValue?: number;
+    appraisalValue?: number;
+    effectiveCollateralValue?: number;
+    confidence?: number;
+    confidenceLabel?: string;
+    product?: string;
+    tenorDays?: number;
+    maxDisbursement?: number;
+    sewaModal?: number;
+    dueDate?: Date | string;
+};
+
+type GenerateAssessmentPDFData = {
+    vehicle?: VehicleData;
+    pricing?: PricingData;
+};
+
+export async function generateAssessmentPDF(data: GenerateAssessmentPDFData) {
     const { vehicle, pricing } = data;
     const doc = new jsPDF();
     const timestamp = new Date().toLocaleString("id-ID");
@@ -54,16 +82,16 @@ export async function generateAssessmentPDF(data: any) {
         const vehicleData: [string, string][] = [];
 
         if (hasValue(vehicle.brandModel)) {
-            vehicleData.push(["Brand & Model", vehicle.brandModel]);
+            vehicleData.push(["Brand & Model", vehicle.brandModel!]);
         }
         if (hasValue(vehicle.plateNumber)) {
-            vehicleData.push(["Plate Number", vehicle.plateNumber]);
+            vehicleData.push(["Plate Number", vehicle.plateNumber!]);
         }
         if (hasValue(vehicle.year)) {
-            vehicleData.push(["Year", vehicle.year]);
+            vehicleData.push(["Year", vehicle.year!]);
         }
         if (hasValue(vehicle.physicalCondition)) {
-            vehicleData.push(["Physical Condition", vehicle.physicalCondition]);
+            vehicleData.push(["Physical Condition", vehicle.physicalCondition!]);
         }
 
         if (vehicleData.length > 0) {
@@ -92,13 +120,13 @@ export async function generateAssessmentPDF(data: any) {
         const priceData: [string, string][] = [];
 
         if (hasValue(pricing.location)) {
-            priceData.push(["Location", pricing.location]);
+            priceData.push(["Location", pricing.location!]);
         }
         if (hasValue(pricing.basePrice)) {
             priceData.push(["Market Price (Base)", formatCurrency(pricing.basePrice)!]);
         }
         if (hasValue(pricing.adjustment)) {
-            const sign = pricing.adjustment >= 0 ? "+" : "";
+            const sign = pricing.adjustment! >= 0 ? "+" : "";
             priceData.push(["Condition Adjustment", `${sign}${formatCurrency(pricing.adjustment)}`]);
         }
         if (hasValue(pricing.assetValue)) {
@@ -111,10 +139,10 @@ export async function generateAssessmentPDF(data: any) {
             priceData.push(["Effective Collateral Value", formatCurrency(pricing.effectiveCollateralValue)!]);
         }
         if (hasValue(pricing.confidence)) {
-            priceData.push(["AI Confidence", `${Math.round(pricing.confidence * 100)}%`]);
+            priceData.push(["AI Confidence", `${Math.round(pricing.confidence! * 100)}%`]);
         }
         if (hasValue(pricing.confidenceLabel)) {
-            priceData.push(["Confidence Level", pricing.confidenceLabel]);
+            priceData.push(["Confidence Level", pricing.confidenceLabel!]);
         }
 
         if (priceData.length > 0) {
@@ -134,10 +162,10 @@ export async function generateAssessmentPDF(data: any) {
         const pawnData: [string, string][] = [];
 
         if (hasValue(pricing.product)) {
-            pawnData.push(["Product Type", pricing.product === 'harian' ? 'Gadai Harian' : 'Gadai Reguler']);
+            pawnData.push(["Product Type", pricing.product! === 'harian' ? 'Gadai Harian' : 'Gadai Reguler']);
         }
         if (hasValue(pricing.tenorDays)) {
-            pawnData.push(["Tenor", `${pricing.tenorDays} days`]);
+            pawnData.push(["Tenor", `${pricing.tenorDays!} days`]);
         }
         if (hasValue(pricing.maxDisbursement)) {
             pawnData.push(["Maximum Disbursement", formatCurrency(pricing.maxDisbursement)!]);
@@ -146,9 +174,9 @@ export async function generateAssessmentPDF(data: any) {
             pawnData.push(["Service Fee (Sewa Modal)", formatCurrency(pricing.sewaModal)!]);
         }
         if (hasValue(pricing.dueDate)) {
-            const dueDate = pricing.dueDate instanceof Date
+            const dueDate = pricing.dueDate! instanceof Date
                 ? pricing.dueDate.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })
-                : pricing.dueDate;
+                : pricing.dueDate!;
             pawnData.push(["Due Date", dueDate]);
         }
 

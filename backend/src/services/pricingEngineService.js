@@ -3,6 +3,10 @@ const { getModel } = require('../config/gemini');
 const SHORT_TERM_DEPRECIATION_RATE = 0.005;
 const DEFAULT_LTV_POLICY = 0.75;
 
+// Note: Google Search grounding does NOT support responseMimeType: 'application/json'
+// Therefore, we use prompt-based JSON instructions for the pricing search.
+// The expected response schema is documented in PRICE_SEARCH_PROMPT below.
+
 const PRICE_SEARCH_PROMPT = `You are a motorcycle market price researcher in Indonesia. Your task is to find the current used/second-hand market price.
 
 Vehicle Details:
@@ -13,7 +17,7 @@ Vehicle Details:
 
 Search for prices from Indonesian marketplaces like OLX, Facebook Marketplace, or dealer websites. Prioritize listings from [PROVINCE] or nearby areas.
 
-Analyze the search results and return ONLY a valid JSON object:
+Return ONLY a valid JSON object with this structure:
 {
   "make": "string",
   "model": "string",
@@ -39,7 +43,7 @@ Guidelines:
 
 async function searchMarketPrice(makeOrVehicleInfo, model, year, province = 'Indonesia') {
   let make, vehicleModel, vehicleYear, vehicleProvince;
-  
+
   if (typeof makeOrVehicleInfo === 'object') {
     make = makeOrVehicleInfo.make;
     vehicleModel = makeOrVehicleInfo.model;
@@ -61,6 +65,8 @@ async function searchMarketPrice(makeOrVehicleInfo, model, year, province = 'Ind
       .replace('[YEAR]', vehicleYear)
       .replace(/\[PROVINCE\]/g, vehicleProvince);
 
+    // Note: Google Search grounding does NOT support responseMimeType: 'application/json'
+    // We must use prompt-based JSON and regex parsing for this endpoint
     const result = await model_ai.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
@@ -74,7 +80,8 @@ async function searchMarketPrice(makeOrVehicleInfo, model, year, province = 'Ind
     const response = await result.response;
     const text = response.text();
 
-    const jsonMatch = text.match(/\{[\s\S]*?\}(?=\s*$|\s*[^,\]\}])/);
+    // Extract JSON from response (may contain markdown or extra text)
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
         const parsed = JSON.parse(jsonMatch[0]);

@@ -1,4 +1,4 @@
-# Pegadaian AI Pawn Assessment System
+# Pegadaian AI Assessment System
 
 ## Overview
 An AI-powered digital pawn assessment application designed to streamline the initial pawn application process. This system enables pawnshop employees to upload photos of collateral items (vehicles) and obtain preliminary loan estimates using advanced AI analysis with Google Gemini.

@@ -1,5 +1,84 @@
 const { getModel } = require('../config/gemini');
 
+// JSON Schema for document extraction
+const DOCUMENT_EXTRACTION_SCHEMA = {
+  type: "object",
+  properties: {
+    document_type: {
+      type: "string",
+      description: "Type of document: SLIK or SALARY_SLIP"
+    },
+    extracted_data: {
+      type: "object",
+      properties: {
+        full_name: {
+          type: "string",
+          description: "Full name of the person/employee",
+          nullable: true
+        },
+        // SLIK-specific fields
+        credit_status: {
+          type: "string",
+          description: "Credit status for SLIK: Lancar, Kurang Lancar, Diragukan, Macet",
+          nullable: true
+        },
+        collectibility: {
+          type: "integer",
+          description: "Collectibility score for SLIK (1-5)",
+          nullable: true
+        },
+        existing_obligations: {
+          type: "array",
+          items: { type: "string" },
+          description: "List of existing credit obligations for SLIK",
+          nullable: true
+        },
+        // Salary Slip-specific fields
+        company_name: {
+          type: "string",
+          description: "Company name for salary slip",
+          nullable: true
+        },
+        position: {
+          type: "string",
+          description: "Job position for salary slip",
+          nullable: true
+        },
+        employment_status: {
+          type: "string",
+          description: "Employment status: Karyawan Tetap, Kontrak, Honorer",
+          nullable: true
+        },
+        gross_income: {
+          type: "number",
+          description: "Gross income for salary slip",
+          nullable: true
+        },
+        net_income: {
+          type: "number",
+          description: "Net income (take home pay) for salary slip",
+          nullable: true
+        },
+        pay_period: {
+          type: "string",
+          description: "Pay period for salary slip",
+          nullable: true
+        }
+      }
+    },
+    confidence_score: {
+      type: "number",
+      description: "Confidence score between 0 and 1"
+    },
+    extraction_notes: {
+      type: "string",
+      description: "Any issues or observations during extraction",
+      nullable: true
+    }
+  },
+  required: ["document_type", "extracted_data", "confidence_score"]
+};
+
 const DOCUMENT_EXTRACTION_PROMPT = `You are a professional document OCR and data extraction system for a financial institution.
 Analyze the uploaded document image(s) and extract relevant information.
 
@@ -18,24 +97,8 @@ For Salary Slip documents, extract:
 - Net income (take home pay)
 - Pay period
 
-Return the data in the following JSON structure:
-{
-  "document_type": "SLIK" or "SALARY_SLIP",
-  "extracted_data": {
-    "full_name": "string",
-    "credit_status": "string (for SLIK only)",
-    "collectibility": number (for SLIK only, 1-5),
-    "existing_obligations": [array of strings] (for SLIK only),
-    "company_name": "string (for SALARY_SLIP only)",
-    "position": "string (for SALARY_SLIP only)",
-    "employment_status": "string (for SALARY_SLIP only)",
-    "gross_income": number (for SALARY_SLIP only),
-    "net_income": number (for SALARY_SLIP only),
-    "pay_period": "string (for SALARY_SLIP only)"
-  },
-  "confidence_score": number (0-1),
-  "extraction_notes": "any issues or observations during extraction"
-}`;
+Set document_type to either "SLIK" or "SALARY_SLIP" based on what you detect.
+Set any unclear or invisible fields to null.`;
 
 async function extractDocumentData(imageBuffer, documentType = null, mimeType = 'image/jpeg') {
   try {
@@ -52,19 +115,17 @@ async function extractDocumentData(imageBuffer, documentType = null, mimeType = 
       ? `${DOCUMENT_EXTRACTION_PROMPT}\n\nExpected document type: ${documentType}`
       : DOCUMENT_EXTRACTION_PROMPT;
 
-    const result = await model.generateContent([contextPrompt, imagePart]);
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: contextPrompt }, imagePart] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: DOCUMENT_EXTRACTION_SCHEMA
+      }
+    });
+
     const response = await result.response;
     const text = response.text();
-
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-
-    return {
-      document_type: 'UNKNOWN',
-      extracted_data: {},
-      confidence_score: 0,
-      extraction_notes: 'Failed to parse extraction result'
-    };
+    return JSON.parse(text);
   } catch (error) {
     throw new Error(`Document extraction failed: ${error.message}`);
   }

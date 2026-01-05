@@ -10,6 +10,7 @@ type Props = {
   breakdown?: { confidence: number } | null;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function PricingHeader({ useMock, setUseMock, isBusy, isLoading, breakdown }: Props) {
   return (
     <div className="px-6 py-5">
