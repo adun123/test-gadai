@@ -2,7 +2,7 @@
 type PawnSim = {
   maxDisbursement?: number;
   sewaModal?: number;
-  dueDate?: Date; // ✅ Date, bukan string
+  dueDate?: Date; // Date, bukan string
 };
 
 type Props = {
@@ -20,7 +20,7 @@ type Props = {
   pawnSim?: PawnSim | null;
   pawnState: string;
 
-  formatIDDate: (d: Date) => string; // ✅ Date
+  formatIDDate: (d: Date) => string; //  Date
 };
 
 
