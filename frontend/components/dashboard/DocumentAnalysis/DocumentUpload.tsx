@@ -134,8 +134,21 @@ export default function DocumentUploadCard({
         </div>
 
         <p className="text-sm font-extrabold text-primary">
-          {isDragOver ? "Drop file here" : label}
-        </p>
+            <span
+              className="
+                relative inline-block cursor-pointer
+                transition-all duration-200
+                hover:translate-x-0.5 hover:text-primary
+                after:absolute after:left-0 after:-bottom-0.5
+                after:h-0.5 after:w-0 after:bg-current
+                after:transition-all after:duration-200
+                hover:after:w-full
+              "
+            >
+              {isDragOver ? "Drop file here" : label}
+            </span>
+          </p>
+
 
         <p className="mt-1 text-xs text-muted-foreground">
           {helperText} — <span className="font-medium">{prettyAllowed()}</span> (max {maxSizeMB}MB)
