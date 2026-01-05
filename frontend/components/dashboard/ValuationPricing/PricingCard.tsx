@@ -14,6 +14,7 @@ import PricingFooter from "./PricingFooter";
 import { VALID_PROVINCES } from "../../../constants/provinces";
 
 
+
 type VehicleCondition =
   | "Mulus (Grade A)"
   | "Normal (Grade B)"
@@ -26,16 +27,13 @@ type Props = {
     brandModel?: string;
     year?: string;
     physicalCondition?: VehicleCondition;
-    defects?: Array<{ description: string; severity: "Minor" | "Moderate" | "Major" | string }> | string[];
+    defects?: Array<{ description: string; severity: "Minor" | "Moderate" | "Major" | "Severe" | string }> | string[];
   };
   onPricingCalculated?: (data: UiBreakdown) => void;
 };
 
-
-
 type PawnProduct = "reguler" | "harian";
 
-// === API shapes (ikuti calculate.js kamu) ===
 type PricingApiResponse = {
   success: boolean;
   message?: string;
@@ -61,7 +59,7 @@ type PricingApiResponse = {
     calculated_at?: string;
   };
   error?: string;
-  errors?: Array<{ msg?: string;[key: string]: unknown }>;
+  errors?: Array<{ msg?: string; [key: string]: unknown }>;
 };
 
 type PawnApiResponse = {
@@ -73,29 +71,38 @@ type PawnApiResponse = {
       loan_amount: number;
       period_days: number;
     };
-    products?: Record<string, {
-      max_loan_amount?: number;
-      maxLoanAmount?: number;
-      sewaModal?: { amount?: number };
-      sewa_modal?: { sewa_modal_amount?: number };
-      schedule?: { dueDate?: string; due_date?: string };
-    }>;
+    products?: Record<
+      string,
+      {
+        max_loan_amount?: number;
+        maxLoanAmount?: number;
+        sewaModal?: { amount?: number };
+        sewa_modal?: { sewa_modal_amount?: number };
+        schedule?: { dueDate?: string; due_date?: string };
+      }
+    >;
     calculated_at?: string;
   };
   error?: string;
-  errors?: Array<{ msg?: string;[key: string]: unknown }>;
+  errors?: Array<{ msg?: string; [key: string]: unknown }>;
 };
 
 type UiBreakdown = {
-  basePrice: number; // market_price
-  adjustment: number; // (asset_value - base_market_price) (dari breakdown)
-  assetValue: number; // breakdown.pricing_breakdown.asset_value
-  confidence: number; // mapped dari confidence_level score (0..1) fallback
+  basePrice: number; // harga pasar
+  adjustment: number; // selisih akibat kondisi (nilaiSetelahKondisi - basePrice)
+  assetValue: number; // nilai setelah kondisi
+  confidence: number;
   confidenceLabel?: string;
   priceRange?: { low?: number; high?: number } | null;
   dataPoints?: number;
-  appraisalValue?: number;
-  effectiveCollateralValue?: number;
+
+  // ✅ tambahan sesuai rumus kamu
+  conditionScorePct: number; // 30..100
+  totalDeductionPct: number; // 0..?? (sebelum cap)
+  effectiveDeductionPct: number; // 0..50 (setelah cap)
+  depreciationRatePct: number; // %
+  effectiveCollateralValue?: number; // ECV
+  appraisalValue?: number; // max pinjaman (LTV)
   tenorDays?: number;
 };
 
@@ -142,24 +149,29 @@ function ExportSection({ vehicle, breakdown, pawnSim, location, tenorDays, produ
     try {
       setLoading(true);
 
-      // Build export data with only non-empty values
       const exportData = {
         vehicle: vehicle?.brandModel ? vehicle : undefined,
-        pricing: breakdown ? {
-          basePrice: breakdown.basePrice,
-          adjustment: breakdown.adjustment,
-          assetValue: breakdown.assetValue,
-          confidence: breakdown.confidence,
-          confidenceLabel: breakdown.confidenceLabel,
-          appraisalValue: breakdown.appraisalValue,
-          effectiveCollateralValue: breakdown.effectiveCollateralValue,
-          location: location || undefined,
-          tenorDays,
-          product,
-          ...(pawnSim?.maxDisbursement && { maxDisbursement: pawnSim.maxDisbursement }),
-          ...(pawnSim?.sewaModal && { sewaModal: pawnSim.sewaModal }),
-          ...(pawnSim?.dueDate && { dueDate: pawnSim.dueDate }),
-        } : undefined,
+        pricing: breakdown
+          ? {
+              basePrice: breakdown.basePrice,
+              adjustment: breakdown.adjustment,
+              assetValue: breakdown.assetValue,
+              confidence: breakdown.confidence,
+              confidenceLabel: breakdown.confidenceLabel,
+              appraisalValue: breakdown.appraisalValue,
+              effectiveCollateralValue: breakdown.effectiveCollateralValue,
+              conditionScorePct: breakdown.conditionScorePct,
+              effectiveDeductionPct: breakdown.effectiveDeductionPct,
+              totalDeductionPct: breakdown.totalDeductionPct,
+              depreciationRatePct: breakdown.depreciationRatePct,
+              location: location || undefined,
+              tenorDays,
+              product,
+              ...(pawnSim?.maxDisbursement && { maxDisbursement: pawnSim.maxDisbursement }),
+              ...(pawnSim?.sewaModal && { sewaModal: pawnSim.sewaModal }),
+              ...(pawnSim?.dueDate && { dueDate: pawnSim.dueDate }),
+            }
+          : undefined,
       };
 
       await generateAssessmentPDF(exportData);
@@ -179,11 +191,7 @@ function ExportSection({ vehicle, breakdown, pawnSim, location, tenorDays, produ
         disabled={loading}
         className="w-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
       >
-        {loading ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
-        ) : (
-          <Download className="w-5 h-5" />
-        )}
+        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
         Export Hasil Analytics
       </button>
     </div>
@@ -199,19 +207,15 @@ function mapVehicleConditionToGrade(cond?: VehicleCondition): "Excellent" | "Goo
 }
 
 function splitBrandModel(brandModel?: string): { make: string; model: string } {
-  const raw = typeof brandModel === "string" ? brandModel.trim() : ""; // ✅ guard
+  const raw = typeof brandModel === "string" ? brandModel.trim() : "";
   if (!raw) return { make: "", model: "" };
 
   const parts = raw.split(/\s+/);
   if (parts.length === 1) return { make: parts[0], model: parts[0] };
 
-  const make = parts[0];
-  const model = parts.slice(1).join(" ");
-  return { make, model };
+  return { make: parts[0], model: parts.slice(1).join(" ") };
 }
-
 function confidenceToNumber(label?: string): number {
-  // fallback kalau backend belum kasih score
   if (!label) return 0.75;
   const x = label.toLowerCase();
   if (x.includes("high")) return 0.9;
@@ -220,42 +224,63 @@ function confidenceToNumber(label?: string): number {
 }
 
 
+type DefectLevel = "minor" | "moderate" | "major" | "severe" | "unknown";
+
+function parseDefectLevel(defectText: string): DefectLevel {
+  const s = defectText.toLowerCase();
+  if (s.includes("(severe)")) return "severe";
+  if (s.includes("(major)")) return "major";
+  if (s.includes("(moderate)")) return "moderate";
+  if (s.includes("(minor)")) return "minor";
+
+  // fallback: keyword kasar (optional)
+  if (s.includes("patah") || s.includes("bocor") || s.includes("tidak fungsi")) return "severe";
+  return "unknown";
+}
+
+function computeConditionScorePct(defects: string[]) {
+  // pengurangan per defect
+  const w: Record<DefectLevel, number> = {
+    minor: 2,
+    moderate: 5,
+    major: 10,
+    severe: 15,
+    unknown: 2,
+  };
+
+  const totalDeduction = defects.reduce((sum, d) => sum + w[parseDefectLevel(d)], 0); // persen
+  const effectiveDeduction = Math.min(totalDeduction, 50);
+  const score = Math.max(100 - effectiveDeduction, 30);
+
+  return {
+    scorePct: score,
+    totalDeductionPct: totalDeduction,
+    effectiveDeductionPct: effectiveDeduction,
+  };
+}
+
+function computeDepreciationRatePct(tenorDays: number) {
+  // 0.5% x (tenor/30)
+  const rate = 0.5 * (tenorDays / 30);
+  return Math.max(0, rate);
+}
 
 
 
-function mapPricingResponseToUi(resp: PricingApiResponse): UiBreakdown | null {
+function mapPricingResponseToUi(resp: PricingApiResponse): Omit<UiBreakdown, "conditionScorePct" | "totalDeductionPct" | "effectiveDeductionPct" | "depreciationRatePct"> | null {
   if (!resp?.success || !resp.data) return null;
 
   const pricing = resp.data.pricing ?? {};
   const breakdown = resp.data.breakdown ?? {};
-  const pb = breakdown.pricing_breakdown as {
-    base_market_price?: { value?: number; range?: { low?: number; high?: number }; data_points?: number };
-    asset_value?: number;
-    condition_adjustment?: { value?: number };
-  } | undefined;
-  const coll = breakdown.collateral_calculation as {
-    appraisal_value?: number;
-    effective_collateral_value?: number;
-    tenor_days?: number;
-  } | undefined;
+  const pb = breakdown.pricing_breakdown as
+    | {
+        base_market_price?: { value?: number; range?: { low?: number; high?: number }; data_points?: number };
+      }
+    | undefined;
+
   const confidenceLevel = breakdown.confidence_level as { score?: number; level?: string } | undefined;
 
   const baseMarket = Number(pb?.base_market_price?.value ?? pricing.market_price ?? 0);
-
-  const condAdj = Number(pb?.condition_adjustment?.value ?? 0);
-
-  // kalau backend sudah kasih asset_value, pakai. Kalau tidak, hitung dari base+adj
-  const assetValueRaw = pb?.asset_value;
-  const assetValue =
-    Number.isFinite(Number(assetValueRaw)) && Number(assetValueRaw) !== 0
-      ? Number(assetValueRaw)
-      : baseMarket + condAdj;
-
-  // adjustment: prioritaskan condition_adjustment (bukan selisih)
-  const adjustment =
-    Number.isFinite(condAdj) && condAdj !== 0
-      ? condAdj
-      : (baseMarket && assetValue ? assetValue - baseMarket : 0);
 
   const confScore =
     typeof confidenceLevel?.score === "number"
@@ -264,24 +289,24 @@ function mapPricingResponseToUi(resp: PricingApiResponse): UiBreakdown | null {
 
   return {
     basePrice: baseMarket,
-    adjustment,
-    assetValue,
+    adjustment: 0,
+    assetValue: baseMarket,
     confidence: Math.max(0.6, Math.min(0.97, confScore)),
     confidenceLabel: confidenceLevel?.level ?? pricing.price_confidence ?? "—",
     priceRange: pb?.base_market_price?.range ?? pricing.price_range ?? null,
     dataPoints: pb?.base_market_price?.data_points ?? pricing.data_points,
-    appraisalValue: coll?.appraisal_value ?? pricing.appraisal_value,
-    effectiveCollateralValue: coll?.effective_collateral_value ?? pricing.effective_collateral_value,
-    tenorDays: coll?.tenor_days ?? pricing.tenor_days,
+    effectiveCollateralValue: pricing.effective_collateral_value,
+    appraisalValue: pricing.appraisal_value,
+    tenorDays: pricing.tenor_days,
   };
 }
-export default function PricingCard({ vehicleReady, vehicle }: Props) {
+export default function PricingCard({ vehicleReady, vehicle,onPricingCalculated }: Props) {
   // const [location, setLocation] = useState("Jakarta Selatan, DKI Jakarta");
   const [tenorDays, setTenorDays] = useState(30);
   const [product, setProduct] = useState<PawnProduct>("reguler");
 
   const [useMock, setUseMock] = useState(false);
-
+  
 
   const [province, setProvince] = useState<string>("Jawa Barat");
 
@@ -304,41 +329,62 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
 
   const makeModel = useMemo(() => splitBrandModel(safeBrandModel), [safeBrandModel]);
 
-  const yearNum = useMemo(() => {
-    const y = Number(vehicle?.year);
-    return Number.isFinite(y) ? y : undefined;
-  }, [vehicle?.year]);
+  function yearToSingleYear(y?: string): number | undefined {
+  const s = (y || "").trim();
+  if (!s) return undefined;
+
+  // "2003-2008" -> ambil tahun akhir (lebih baru)
+  const r = s.match(/(\d{4})\s*-\s*(\d{4})/);
+  if (r) return Number(r[2]);
+
+  // "2019" -> 2019
+  const one = s.match(/(\d{4})/);
+  if (one) return Number(one[1]);
+
+  return undefined;
+}
+
+function isValidYear(y: unknown): y is number {
+  return typeof y === "number" && Number.isInteger(y) && y > 1900 && y <= new Date().getFullYear();
+}
+
+
+const yearNum = useMemo(() => {
+  const y = yearToSingleYear(vehicle?.year);
+  return isValidYear(y) ? y : undefined;
+}, [vehicle?.year]);
 
   const overallGrade = useMemo(() => mapVehicleConditionToGrade(vehicle?.physicalCondition), [vehicle?.physicalCondition]);
+
   const [defects, setDefects] = useState<string[]>([]);
 
   const canCallPricing = vehicleReady && !!makeModel.make && !!makeModel.model;
 
 
-  async function fetchPricing() {
-    if (!canCallPricing) return;
 
-    setErrorMsg(null);
-    setState("processing");
+ 
+async function fetchPricing() {
+  if (!canCallPricing) return;
 
-    try {
-      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-      const url = `${base}/api/calculate/pricing${useMock ? "?mock=true" : ""}`;
+  setErrorMsg(null);
+  setState("processing");
 
-      const body = {
-        vehicle_identification: {
-          make: makeModel.make,
-          model: makeModel.model,
-          year: yearNum,
-          vehicle_type: "Matic",
-        },
-        physical_condition: {
-          overall_grade: overallGrade,
-          defects, // ✅ ini penting
-        },
-        province,
-        tenor_days: tenorDays,
-      };
+  try {
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+    const url = `${base}/api/calculate/pricing${useMock ? "?mock=true" : ""}`;
+
+    const body = {
+      vehicle_identification: {
+        make: makeModel.make,
+        model: makeModel.model,
+        year: yearNum!, // aman karena canCallPricing sudah cek
+        vehicle_type: "Matic",
+      },
+      physical_condition: { overall_grade: overallGrade, defects },
+      province,
+      tenor_days: tenorDays,
+    };
+      
 
       const res = await fetch(url, {
         method: "POST",
@@ -346,13 +392,7 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
         body: JSON.stringify(body),
       });
 
-
       const data = (await res.json()) as PricingApiResponse;
-
-      // console.log("RAW pricing response:", data);
-      // console.log("RAW breakdown.pricing_breakdown:", data?.data?.breakdown?.pricing_breakdown);
-      // console.log("RAW condition_adjustment:", data?.data?.breakdown?.pricing_breakdown?.condition_adjustment);
-      // console.log("DEFECTS SENT:", defects);
 
       if (!res.ok || !data.success) {
         const msg =
@@ -361,14 +401,43 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
           `Request failed (HTTP ${res.status})`;
         throw new Error(msg);
       }
-      const mapped = mapPricingResponseToUi(data);
 
-      // console.log("PB:", data?.data?.breakdown?.pricing_breakdown);
-      // console.log("COND:", data?.data?.breakdown?.pricing_breakdown?.condition_adjustment);
-      // console.log("MAPPED UI breakdown:", mapped);
-      setPricing(mapped);
+      const mappedBase = mapPricingResponseToUi(data);
+      if (!mappedBase) {
+        setPricing(null);
+        setState("done");
+        return;
+      }
+      
+      // hitung sesuai rumus kamu (defects -> skor -> nilai -> ecv -> appraisal)
+      const { scorePct, totalDeductionPct, effectiveDeductionPct } = computeConditionScorePct(defects);
+      const conditionMultiplier = scorePct / 100;
 
+      const assetValue = Math.round(mappedBase.basePrice * conditionMultiplier);
+      const adjustment = assetValue - mappedBase.basePrice;
+
+      const depreciationRatePct = computeDepreciationRatePct(tenorDays);
+      const depreciationMultiplier = 1 - depreciationRatePct / 100;
+
+      const ecv = Math.round(assetValue * depreciationMultiplier);
+      const appraisal = Math.round(ecv * 0.75); // LTV 75%
+
+      const finalUi: UiBreakdown = {
+        ...mappedBase,
+        assetValue,
+        adjustment,
+        effectiveCollateralValue: ecv,
+        appraisalValue: appraisal,
+        tenorDays,
+        conditionScorePct: scorePct,
+        totalDeductionPct,
+        effectiveDeductionPct,
+        depreciationRatePct,
+      };
+
+      setPricing(finalUi);
       setState("done");
+      onPricingCalculated?.(finalUi);
     } catch (e) {
       setState("error");
       setErrorMsg(e instanceof Error ? e.message : "Gagal menghitung pricing");
@@ -376,6 +445,8 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
     }
   }
 
+
+ 
   async function fetchPawn(appraisalValue: number) {
     setPawnError(null);
     setPawnState("processing");
@@ -384,7 +455,6 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
       const base = process.env.NEXT_PUBLIC_BACKEND_URL || "";
       const url = `${base}/api/calculate/pawn${useMock ? "?mock=true" : ""}`;
 
-      // loan_amount: di UI sekarang kamu belum input manual, jadi default = appraisal
       const body = {
         appraisal_value: appraisalValue,
         loan_amount: appraisalValue,
@@ -416,6 +486,7 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
     }
   }
 
+  // ambil defects dari vehicle
   useEffect(() => {
     const raw = vehicle?.defects;
 
@@ -424,13 +495,11 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
       return;
     }
 
-    // kalau array string udah "desc (Severity)"
     if (Array.isArray(raw) && typeof raw[0] === "string") {
       setDefects(raw as string[]);
       return;
     }
 
-    // kalau array object {description, severity}
     if (Array.isArray(raw)) {
       const formatted = raw
         .map((d: { description?: string; label?: string; severity?: string }) => {
@@ -444,27 +513,37 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
     }
   }, [vehicle]);
 
-  // Auto-call pricing on changes (debounced)
-  useEffect(() => {
-    if (!canCallPricing) {
-      setPricing(null);
-      setState("idle");
-      return;
-    }
+  // auto pricing (debounce)
+ useEffect(() => {
+  // belum siap
+  if (!vehicleReady || !makeModel.make || !makeModel.model) {
+    setPricing(null);
+    setState("idle");
+    return;
+  }
 
+  // year belum valid -> jangan fetch, tampilkan pesan (opsional)
+  if (!isValidYear(yearNum)) {
+    setPricing(null);
+    setState("idle");
+    setErrorMsg("Tahun kendaraan belum terbaca (contoh: 2019 atau 2003-2008). Isi manual atau unggah foto tambahan.");
+    return;
+  }
+
+  setErrorMsg(null);
+
+  if (debounceRef.current) window.clearTimeout(debounceRef.current);
+  debounceRef.current = window.setTimeout(() => {
+    fetchPricing();
+  }, 450);
+
+  return () => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
+  };
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [vehicleReady, province, makeModel.make, makeModel.model, yearNum, overallGrade, defects, tenorDays, useMock]);
 
-    debounceRef.current = window.setTimeout(() => {
-      fetchPricing();
-    }, 450);
-
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canCallPricing, province, makeModel.make, makeModel.model, yearNum, overallGrade, defects, tenorDays, useMock]);
-
-  // Auto-call pawn after pricing ready (whenever appraisal/tenor changes)
+  // auto pawn after pricing ready
   useEffect(() => {
     const appraisal = pricing?.appraisalValue;
     if (!vehicleReady || !appraisal) {
@@ -476,21 +555,15 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pricing?.appraisalValue, tenorDays, useMock, vehicleReady]);
 
-
   useEffect(() => {
     if (product === "harian") {
       setTenorDays((v) => Math.min(Math.max(v, 1), 60));
     }
   }, [product, setTenorDays]);
 
-
-
-
   const breakdown = pricing;
-
   const isBusy = state === "processing" || pawnState === "processing";
 
-  // UI helper: ambil angka produk dari response comparePawnProducts (kalau beda struktur, tetep aman fallback)
   const pawnSim = useMemo(() => {
     if (!pawnResp?.data?.products || !breakdown?.appraisalValue) return null;
 
@@ -498,11 +571,9 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
     const key = product === "reguler" ? "regular" : "daily";
     const p = products?.[key];
 
-    // Support both old (snake_case) and new (camelCase) API response formats
-    const maxLoan = p?.max_loan_amount ?? p?.max_loan_amount ?? pawnResp.data.input?.loan_amount ?? 0;
+    const maxLoan = p?.max_loan_amount ?? p?.maxLoanAmount ?? pawnResp.data.input?.loan_amount ?? 0;
     const sewaModal = p?.sewaModal?.amount ?? p?.sewa_modal?.sewa_modal_amount ?? 0;
 
-    // due date dari schedule (kalau ada) atau tenorDays
     const dueDateStr = p?.schedule?.dueDate ?? p?.schedule?.due_date;
     const due = dueDateStr ? new Date(dueDateStr) : addDays(new Date(), tenorDays);
 
@@ -510,9 +581,8 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
       appraisal: breakdown.appraisalValue,
       maxDisbursement: maxLoan,
       sewaModal,
-      dueDate: due, // ✅ Date
+      dueDate: due,
     };
-
   }, [pawnResp, product, breakdown?.appraisalValue, tenorDays]);
 
   return (
@@ -540,7 +610,16 @@ export default function PricingCard({ vehicleReady, vehicle }: Props) {
 
 
 
-        <PricingBreakdown vehicleReady={vehicleReady} breakdown={breakdown} state={state} rupiah={rupiah} />
+        <PricingBreakdown
+          vehicleReady={vehicleReady}
+          breakdown={breakdown}
+          state={state}
+          rupiah={rupiah}
+          onPickProvince={(p) => {
+            setProvince(p);          //  PricingLocation ikut pindah
+            setState("idle");        // optional: reset state supaya pesan "menghitung ulang" natural
+          }}
+        />
 
         <TenorSlider
           vehicleReady={vehicleReady}
