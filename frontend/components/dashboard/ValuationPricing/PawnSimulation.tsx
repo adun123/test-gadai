@@ -96,15 +96,16 @@ export default function PawnSimulation({
               <div className="text-right">
                 <p className="text-xs font-extrabold opacity-80">Maksimal Dana Cair</p>
                 <p className="mt-2 text-lg font-extrabold text-yellow-300">
-                  {pawnSim?.maxDisbursement
+                 {typeof pawnSim?.maxDisbursement === "number"
                     ? pawnSim.maxDisbursement.toLocaleString("id-ID", {
-                      style: "currency",
-                      currency: "IDR",
-                      maximumFractionDigits: 0,
-                    })
+                        style: "currency",
+                        currency: "IDR",
+                        maximumFractionDigits: 0,
+                      })
                     : pawnState === "processing"
                       ? "Menghitung…"
                       : "—"}
+
                 </p>
               </div>
             </div>
