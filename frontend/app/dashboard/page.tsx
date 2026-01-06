@@ -18,9 +18,15 @@ type VehiclePayload = {
   brandModel?: string;
   year?: string;
   physicalCondition?: VehicleCondition;
-  defects?: string[]; 
+  defects?: string[];
 };
 
+type VehicleAnalyzedInput = {
+  brandModel?: string;
+  year?: string;
+  physicalCondition?: VehicleCondition;
+  defects?: string[] | unknown;
+};
 
 export default function DashboardPage() {
   const [vehicle, setVehicle] = useState<VehiclePayload | null>(null);
@@ -47,11 +53,14 @@ export default function DashboardPage() {
       return;
     }
 
+    const input = v as VehicleAnalyzedInput;
+    const defects = Array.isArray(input?.defects) ? input.defects : [];
+
     const normalized: VehiclePayload = {
       brandModel,
       year: String(v?.year || "").trim(),
       physicalCondition: v?.physicalCondition,
-      defects: Array.isArray((v as any)?.defects) ? (v as any).defects : [],
+      defects,
     };
 
     setVehicle(normalized);

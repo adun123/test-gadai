@@ -72,7 +72,7 @@ export default function DefectChips({ items, editable, onToggle, onAdd }: Props)
 
           <select
             value={pick}
-            onChange={(e) => setPick(e.target.value as any)}
+            onChange={(e) => setPick(e.target.value as "Minor" | "Moderate" | "Major" | "Severe")}
             className="rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold"
           >
             <option value="Minor">Minor</option>
