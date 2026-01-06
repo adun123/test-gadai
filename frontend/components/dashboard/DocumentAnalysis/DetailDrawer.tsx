@@ -50,23 +50,34 @@ export default function DetailDrawer({ open, onClose, doc }: Props) {
 
                 <p className="mt-3 text-xs font-semibold text-gray-500">Jenis Dokumen</p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">{doc.documentType}</p>
+              
+                 {doc.documentType === "Slip Gaji" && (
+                    <>
+                      <p className="mt-3 text-xs font-semibold text-gray-500">Rentang Penghasilan</p>
+                      <p className="mt-1 text-sm font-semibold text-gray-900">
+                        {doc.incomeRange ?? "-"}
+                      </p>
+                    </>
+                  )}
 
-                <p className="mt-3 text-xs font-semibold text-gray-500">Status Kredit</p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">{doc.creditStatus}</p>
-              </div>
-
-              <div className="rounded-xl border bg-white p-4">
-                <p className="text-xs font-semibold text-gray-500">Status Pekerjaan</p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">{doc.employmentStatus ?? "-"}</p>
-
-                <p className="mt-3 text-xs font-semibold text-gray-500">Rentang Penghasilan</p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">{doc.incomeRange ?? "-"}</p>
-
+                
+                  {doc.documentType === "SLIK OJK" && (
+                  <>
+                    <p className="mt-3 text-xs font-semibold text-gray-500">Status Kredit</p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {doc.creditStatus || "-"}
+                    </p>
+                  </>
+                )}
+                   
                 <p className="mt-3 text-xs font-semibold text-gray-500">Confidence (mock)</p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">
                   {typeof doc.rawConfidence === "number" ? `${Math.round(doc.rawConfidence * 100)}%` : "-"}
                 </p>
+
               </div>
+
+             
 
               {doc.notes ? (
                 <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">

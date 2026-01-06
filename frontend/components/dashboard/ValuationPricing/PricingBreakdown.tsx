@@ -17,11 +17,22 @@ type Props = {
   breakdown?: Breakdown | null;
   state: string; // "processing" | "idle" | ...
   rupiah: (n: number) => string;
+  onPickProvince?: (p: string) => void;
 };
+const FALLBACK_PROVINCES = [
+  "DKI Jakarta",
+  "Jawa Barat",
+  "Jawa Tengah",
+  "Jawa Timur",
+  "Banten",
+];
+
 
 function SkeletonValue({ tone = "neutral" }: { tone?: "neutral" | "primary" }) {
   const line1 = tone === "primary" ? "bg-primary/25" : "bg-muted";
   const line2 = tone === "primary" ? "bg-primary/15" : "bg-muted/70";
+ 
+
 
   return (
     <div className="mt-2 space-y-2">
@@ -85,7 +96,7 @@ function StatCard({
 }
 
 
-export default function PricingBreakdown({ vehicleReady, breakdown, state, rupiah }: Props) {
+export default function PricingBreakdown({ vehicleReady, breakdown, state, rupiah, onPickProvince }: Props) {
  
  const isProcessing = state === "processing";
   const noDataNow = !!breakdown && isZeroResult(breakdown);
@@ -122,13 +133,39 @@ export default function PricingBreakdown({ vehicleReady, breakdown, state, rupia
       ) : null}
 
       {showNoData && !isProcessing ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-extrabold text-amber-900">Data harga tidak ditemukan</p>
-          <p className="mt-1 text-xs text-amber-800">
-            Coba pilih provinsi lain atau periksa ejaan lokasi.
-          </p>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+          <div>
+            <p className="text-sm font-extrabold text-amber-900">
+              Data harga tidak ditemukan
+            </p>
+            <p className="mt-1 text-xs text-amber-800">
+              Kami tidak menemukan data yang cukup untuk provinsi ini.
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs font-bold text-amber-900">
+              Coba provinsi dengan data tersedia:
+            </p>
+
+            <div className="mt-2 flex flex-wrap gap-2">
+              {FALLBACK_PROVINCES.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => onPickProvince?.(p)}
+                  className="rounded-full border border-amber-300 bg-white px-3 py-1.5
+                            text-xs font-extrabold text-amber-900
+                            hover:bg-amber-100 transition"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       ) : null}
+
  
       <div className="grid gap-3 mt-2 sm:grid-cols-3">
        

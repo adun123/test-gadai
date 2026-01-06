@@ -100,43 +100,51 @@ export default function ExtractedSummary({ doc, editMode, onToggleEdit, onChange
       )}
 
 
-      {/* Status Kredit */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-gray-800">Status Kredit</label>
+     {/* Status Kredit — hanya untuk SLIK OJK */}
+      {doc.documentType === "SLIK OJK" && (
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-800">Status Kredit</label>
 
-        <div className="relative">
-          <span
-            className={`absolute left-5 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${statusDotClass(
-              doc.creditStatus
-            )}`}
-          />
+          <div className="relative">
+            <span
+              className={`absolute left-5 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${statusDotClass(
+                doc.creditStatus
+              )}`}
+            />
 
-          <select
-            value={doc.creditStatus}
-            onChange={(e) => onChange({ creditStatus: e.target.value as ExtractedDocument["creditStatus"] })}
-            disabled={!editMode}
-            className="w-full appearance-none rounded-2xl border bg-white py-3 pl-12 pr-12 text-base font-semibold text-gray-900 shadow-sm
-                       disabled:bg-gray-50"
-          >
-            <option value="Lancar">Lancar (KOL 1)</option>
-            <option value="Perhatian">Perhatian (KOL 2)</option>
-            <option value="Tidak Lancar">Tidak Lancar (KOL 3+)</option>
-            <option value="Unknown">Unknown</option>
-          </select>
+            <select
+              value={doc.creditStatus}
+              onChange={(e) => {
+                const nextType = e.target.value as ExtractedDocument["documentType"];
+                onChange({
+                  documentType: nextType,
+                  ...(nextType !== "SLIK OJK" ? { creditStatus: "Unknown" } : {}),
+                });
+              }}
 
-          {/* chevron */}
-          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </span>
+              disabled={!editMode}
+              className="w-full appearance-none rounded-2xl border bg-white py-3 pl-12 pr-12 text-base font-semibold text-gray-900 shadow-sm
+                        disabled:bg-gray-50"
+            >
+              <option value="Lancar">Lancar (KOL 1)</option>
+              <option value="Perhatian">Perhatian (KOL 2)</option>
+              <option value="Tidak Lancar">Tidak Lancar (KOL 3+)</option>
+              <option value="Unknown">Unknown</option>
+            </select>
+
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </span>
+          </div>
+
+          <p className="pt-1 text-xs text-gray-500">
+            {editMode ? "Mode edit aktif — gunakan untuk koreksi manual hasil PoC." : "Klik Edit untuk koreksi manual."}
+          </p>
         </div>
+      )}
 
-        {/* kecilin text helper biar clean */}
-        <p className="pt-1 text-xs text-gray-500">
-          {editMode ? "Mode edit aktif — gunakan untuk koreksi manual hasil PoC." : "Klik Edit untuk koreksi manual."}
-        </p>
-      </div>
     </div>
   );
 }
