@@ -173,7 +173,7 @@ export default function VehicleCard({
   const [lastFiles, setLastFiles] = useState<File[]>([]);
 
 
-  // ✅ penting: setelah AI isi, field defaultnya terkunci (read-only) sampai user klik Edit
+  //  setelah AI isi, field defaultnya terkunci (read-only) sampai user klik Edit
   const [editMode, setEditMode] = useState(false);
 
   const badge = useMemo(() => {
@@ -336,7 +336,7 @@ function applyDefects(next: DefectItem[]) {
   // base condition dari score (logic kamu tetap kepake)
   let newCond = scoreToVehicleCondition(score);
 
-  // ✅ RULE KETUA: kalau ada defect, minimal harus Minor (Grade B)
+  // 
   // Catatan: sesuaikan value string ini dengan VehicleCondition kamu
   if (hasSelectedDefect) {
     // Kalau scoring kamu bisa ngasih Grade C/D untuk defect berat,
