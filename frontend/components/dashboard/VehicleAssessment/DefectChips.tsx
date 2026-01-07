@@ -78,7 +78,7 @@ export default function DefectChips({ items, editable, onToggle, onAdd }: Props)
             <option value="Minor">Minor</option>
             <option value="Moderate">Moderate</option>
             <option value="Major">Major</option>
-            <option value="Severe">Severe</option>
+           
           </select>
 
           <button
