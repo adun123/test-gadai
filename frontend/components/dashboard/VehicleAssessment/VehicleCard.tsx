@@ -141,6 +141,10 @@ const finalScore =
   };
 }
 
+function derivePhysicalConditionFromDefects(defects: DefectItem[]) {
+  const hasSelectedDefect = defects.some((d) => d.selected);
+  return hasSelectedDefect ? "Minor (Grade B)" : "Mulus (Grade A)";
+}
 
 type State = "idle" | "uploading" | "processing" | "done" | "error";
 
@@ -154,6 +158,7 @@ export default function VehicleCard({
   const [state, setState] = useState<State>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [defects, setDefects] = useState<DefectItem[]>([]);
+  const [uploadResetKey, setUploadResetKey] = useState(0);
 
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [form, setForm] = useState<VehicleForm>({
@@ -284,6 +289,7 @@ export default function VehicleCard({
   //integrasi reset
   function reset() {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
+    setUploadResetKey((k) => k + 1);
     setImageUrl(null);
     setState("idle");
     setErrorMsg(null);
@@ -324,13 +330,24 @@ function applyDefects(next: DefectItem[]) {
 
   const selectedStrings = toPricingDefects(next);
   const score = computeFinalScoreFromDefects(selectedStrings);
-  const newCond = scoreToVehicleCondition(score);
 
-  // ⬇️ ini kunci turunnya grade
+  const hasSelectedDefect = next.some((d) => d.selected);
+
+  // base condition dari score (logic kamu tetap kepake)
+  let newCond = scoreToVehicleCondition(score);
+
+  // ✅ RULE KETUA: kalau ada defect, minimal harus Minor (Grade B)
+  // Catatan: sesuaikan value string ini dengan VehicleCondition kamu
+  if (hasSelectedDefect) {
+    // Kalau scoring kamu bisa ngasih Grade C/D untuk defect berat,
+    // jangan ditimpa jadi B. Jadi kita hanya "naikkan" A → B.
+    if (newCond === "Mulus (Grade A)") {
+      newCond = "Normal (Grade B)";
+    }
+  }
+
   setForm((prev) =>
-    prev.physicalCondition === newCond
-      ? prev
-      : { ...prev, physicalCondition: newCond }
+    prev.physicalCondition === newCond ? prev : { ...prev, physicalCondition: newCond }
   );
 
   setNotes((old) =>
@@ -340,10 +357,11 @@ function applyDefects(next: DefectItem[]) {
   onAnalyzed?.({
     brandModel: form.brandModel,
     year: form.year,
-    physicalCondition: newCond, // ⬅BUKAN yang lama
-    defects: selectedStrings,
+    physicalCondition: newCond,
+    defects: next.filter((d) => d.selected).map((d) => d.label),
   });
 }
+
 
 
 
@@ -375,11 +393,17 @@ function applyDefects(next: DefectItem[]) {
 
       <div className="p-5 space-y-4">
         {/* Image upload input */}
-        <VehicleImageUpload onUpload={handleUpload} disabled={isBusy} />
+        <VehicleImageUpload 
+        key={uploadResetKey}
+        onUpload={handleUpload} 
+        disabled={isBusy} />
 
         {/* Image area */}
         <div className="relative overflow-hidden rounded-2xl border border-border bg-muted">
-          {badge ? <div className={badgeClass(badge.tone)}>{badge.text}</div> : null}
+         {imageUrl && badge ? (
+            <div className={badgeClass(badge.tone)}>{badge.text}</div>
+          ) : null}
+
 
           {imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
