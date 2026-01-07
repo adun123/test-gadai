@@ -310,7 +310,7 @@ export default function DocumentCard() {
                           )
                         )
                       }
-                      onReupload={() => resetSlot(slot.slotId)}  // ✅ ini kuncinya
+                      onReupload={() => resetSlot(slot.slotId)}  //  ini kuncinya
                     />
 
 
@@ -337,7 +337,7 @@ export default function DocumentCard() {
           );
         })}
 
-        {/* ✅ ADD BUTTON DI BAWAH LIST */}
+        {/*  ADD BUTTON DI BAWAH LIST */}
         <button
           type="button"
           onClick={addSlot}
