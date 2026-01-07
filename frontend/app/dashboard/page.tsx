@@ -30,8 +30,8 @@ type VehicleAnalyzedInput = {
 
 export default function DashboardPage() {
   const [vehicle, setVehicle] = useState<VehiclePayload | null>(null);
-
-  const vehicleReady = !!vehicle?.brandModel;
+const [scanDone, setScanDone] = useState(false);
+   const vehicleComplete = !!vehicle?.brandModel && !!vehicle?.year;
 
   return (
     <div className="space-y-6 pb-10">
@@ -44,32 +44,39 @@ export default function DashboardPage() {
         <DocumentCard />
 
  <VehicleCard
-  onAnalyzed={(v) => {
-    const brandModel = (v?.brandModel || "").trim();
+          onAnalyzed={(v) => {
+            const input = v as VehicleAnalyzedInput;
 
-    // kalau reset / kosong, bener-bener hapus kendaraan
-    if (!brandModel) {
-      setVehicle(null);
-      return;
-    }
+            const brandModel = (input?.brandModel || "").trim();
+            const year = String(input?.year || "").trim();
+            const defects = Array.isArray(input?.defects) ? (input.defects as string[]) : [];
 
-    const input = v as VehicleAnalyzedInput;
-    const defects = Array.isArray(input?.defects) ? input.defects : [];
+            // ✅ kalau ada output apapun (defect/year/brandModel), anggap scan sudah terjadi
+            const gotSomething = !!brandModel || !!year || defects.length > 0;
+            setScanDone(gotSomething);
 
-    const normalized: VehiclePayload = {
-      brandModel,
-      year: String(v?.year || "").trim(),
-      physicalCondition: v?.physicalCondition,
-      defects,
-    };
+            // ✅ jangan set null hanya karena brandModel kosong
+            // biarkan vehicle tersimpan parsial supaya UI bisa bilang “scan done tapi blur”
+            const normalized: VehiclePayload = {
+              brandModel: brandModel || undefined,
+              year: year || undefined,
+              physicalCondition: input?.physicalCondition,
+              defects,
+            };
 
-    setVehicle(normalized);
-  }}
-/>
+            // kalau bener-bener kosong semua (reset), baru null
+            if (!gotSomething) {
+              setVehicle(null);
+              return;
+            }
+
+            setVehicle(normalized);
+          }}
+        />
 
 
 
-        <PricingCard vehicleReady={vehicleReady} vehicle={vehicle ?? undefined} />
+        <PricingCard vehicleReady={scanDone} vehicle={vehicle ?? undefined} />
       </DashboardGrid>
     </div>
   );
