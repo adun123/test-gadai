@@ -30,7 +30,7 @@ Return ONLY a valid JSON object with this structure:
   "average_price": number,
   "data_points": number,
   "confidence": "HIGH" | "MEDIUM" | "LOW",
-  "market_analysis": "brief explanation of how price was determined",
+  "market_analysis": "In one sentence, explain how the price was determined."
   "sources": ["list of sources found"]
 }
 
