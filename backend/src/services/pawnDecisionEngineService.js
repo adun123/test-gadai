@@ -105,7 +105,7 @@ function calculatePawnLoan(appraisalValue, requestedLoanAmount, productType, ten
     product: { type: productType, name: product.name },
     appraisal_value: appraisalValue,
 
-    // ✅ bedakan semua angka
+    //  bedakan semua angka
     max_loan_amount: maxLoanAmount,
     requested_loan_amount: requested,
     approved_loan_amount: approvedLoanAmount,
