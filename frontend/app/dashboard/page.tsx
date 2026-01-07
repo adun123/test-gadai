@@ -31,7 +31,6 @@ type VehicleAnalyzedInput = {
 export default function DashboardPage() {
   const [vehicle, setVehicle] = useState<VehiclePayload | null>(null);
 const [scanDone, setScanDone] = useState(false);
-   const vehicleComplete = !!vehicle?.brandModel && !!vehicle?.year;
 
   return (
     <div className="space-y-6 pb-10">

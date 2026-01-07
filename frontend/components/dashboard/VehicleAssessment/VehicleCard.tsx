@@ -141,10 +141,7 @@ const finalScore =
   };
 }
 
-function derivePhysicalConditionFromDefects(defects: DefectItem[]) {
-  const hasSelectedDefect = defects.some((d) => d.selected);
-  return hasSelectedDefect ? "Minor (Grade B)" : "Mulus (Grade A)";
-}
+
 
 type State = "idle" | "uploading" | "processing" | "done" | "error";
 

@@ -281,9 +281,7 @@ function mapPricingResponseToUi(resp: PricingApiResponse): Omit<UiBreakdown, "co
 
   const confidenceLevel = breakdown.confidence_level as { score?: number; level?: string } | undefined;
 
-  const hasMarketData =
-    typeof breakdown?.dataPoints === "number" &&
-    breakdown.dataPoints > 0;
+ 
 
   const baseMarket = Number(pb?.base_market_price?.value ?? pricing.market_price ?? 0);
 

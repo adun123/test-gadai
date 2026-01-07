@@ -28,24 +28,9 @@ const FALLBACK_PROVINCES = [
 ];
 
 
-function SkeletonValue({ tone = "neutral" }: { tone?: "neutral" | "primary" }) {
-  const line1 = tone === "primary" ? "bg-primary/25" : "bg-muted";
-  const line2 = tone === "primary" ? "bg-primary/15" : "bg-muted/70";
- 
 
 
-  return (
-    <div className="mt-2 space-y-2">
-      <div className={`h-6 w-40 animate-pulse rounded-lg ${line1}`} />
-      <div className={`h-4 w-48 animate-pulse rounded-lg ${line2}`} />
-    </div>
-  );
-}
 
-function isZeroResult(b?: Breakdown | null) {
-  if (!b) return false;
-  return [b.basePrice, b.assetValue, b.adjustment].every((x) => Math.abs(x) < 1e-9);
-}
 function SkeletonCircle({ tone = "neutral" }: { tone?: "neutral" | "primary" }) {
   const bg =
     tone === "primary" ? "bg-primary/25" : "bg-muted";
@@ -129,23 +114,11 @@ export default function PricingBreakdown({ vehicleReady, breakdown, state, rupia
 
 const showLoading = isProcessing;
 
-const baseValue = showLoading
-  ? <SkeletonCircle />
-  : breakdown
-    ? rupiah(breakdown.basePrice)
-    : "—";
 
-const assetValue = showLoading
-  ? <SkeletonCircle tone="primary" />
-  : breakdown
-    ? rupiah(breakdown.assetValue)
-    : "—";
 
-const adjustmentValue = showLoading
-  ? <SkeletonCircle />
-  : breakdown
-    ? `${breakdown.adjustment < 0 ? "-" : "+"} ${rupiah(Math.abs(breakdown.adjustment))}`
-    : "—";
+
+
+
 
 
     React.useEffect(() => {
