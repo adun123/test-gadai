@@ -60,7 +60,7 @@ export default function DefectChips({ items, editable, onToggle, onAdd }: Props)
         </span>
       </div>
 
-      {/* ✅ Add manual defect */}
+      {/* Add manual defect */}
       {editable && onAdd ? (
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
