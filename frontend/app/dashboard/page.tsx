@@ -51,11 +51,11 @@ const [scanDone, setScanDone] = useState(false);
             const year = String(input?.year || "").trim();
             const defects = Array.isArray(input?.defects) ? (input.defects as string[]) : [];
 
-            // ✅ kalau ada output apapun (defect/year/brandModel), anggap scan sudah terjadi
+            //  kalau ada output apapun (defect/year/brandModel), anggap scan sudah terjadi
             const gotSomething = !!brandModel || !!year || defects.length > 0;
             setScanDone(gotSomething);
 
-            // ✅ jangan set null hanya karena brandModel kosong
+            // jangan set null hanya karena brandModel kosong
             // biarkan vehicle tersimpan parsial supaya UI bisa bilang “scan done tapi blur”
             const normalized: VehiclePayload = {
               brandModel: brandModel || undefined,
