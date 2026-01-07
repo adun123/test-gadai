@@ -46,6 +46,24 @@ function isZeroResult(b?: Breakdown | null) {
   if (!b) return false;
   return [b.basePrice, b.assetValue, b.adjustment].every((x) => Math.abs(x) < 1e-9);
 }
+function SkeletonCircle({ tone = "neutral" }: { tone?: "neutral" | "primary" }) {
+  const bg =
+    tone === "primary" ? "bg-primary/25" : "bg-muted";
+
+  return (
+    <div className="mt-2 flex items-center gap-3">
+      <div
+        className={[
+          "h-10 w-10 rounded-full animate-pulse",
+          bg,
+        ].join(" ")}
+      />
+      <div className="space-y-2">
+        <div className="h-4 w-24 rounded-md bg-muted/70 animate-pulse" />
+      </div>
+    </div>
+  );
+}
 
 function StatCard({
   title,
@@ -97,21 +115,39 @@ function StatCard({
 
 
 export default function PricingBreakdown({ vehicleReady, breakdown, state, rupiah, onPickProvince }: Props) {
- 
+ const hasMarketData =
+  typeof breakdown?.dataPoints === "number" &&
+  breakdown.dataPoints > 0;
+
  const isProcessing = state === "processing";
-  const noDataNow = !!breakdown && isZeroResult(breakdown);
+ const noDataNow =
+  !!breakdown &&
+  (!hasMarketData || breakdown.dataPoints === 0);
+
 
   const [showNoData, setShowNoData] = React.useState(false);
 
-  const baseValue = breakdown ? rupiah(breakdown.basePrice) : isProcessing ? <SkeletonValue /> : "—";
-  const assetValue = breakdown ? rupiah(breakdown.assetValue) : isProcessing ? <SkeletonValue tone="primary" /> : "—";
-  
- 
-  const adjustmentValue = breakdown
+const showLoading = isProcessing;
+
+const baseValue = showLoading
+  ? <SkeletonCircle />
+  : breakdown
+    ? rupiah(breakdown.basePrice)
+    : "—";
+
+const assetValue = showLoading
+  ? <SkeletonCircle tone="primary" />
+  : breakdown
+    ? rupiah(breakdown.assetValue)
+    : "—";
+
+const adjustmentValue = showLoading
+  ? <SkeletonCircle />
+  : breakdown
     ? `${breakdown.adjustment < 0 ? "-" : "+"} ${rupiah(Math.abs(breakdown.adjustment))}`
-    : isProcessing
-      ? <SkeletonValue />
-      : "—";
+    : "—";
+
+
     React.useEffect(() => {
     // kalau no data, tampilkan tapi jangan instan (anti flicker)
     if (noDataNow) {
@@ -169,28 +205,57 @@ export default function PricingBreakdown({ vehicleReady, breakdown, state, rupia
  
       <div className="grid gap-3 mt-2 sm:grid-cols-3">
        
-        <StatCard
-          title="HARGA PASAR"
-          value={baseValue}
-          sub={breakdown?.dataPoints ? `${breakdown.dataPoints} data points` : "Base price (market value)"}
-       
-       />
+    <StatCard
+        title="HARGA PASAR"
+        value={
+          showLoading
+            ? <SkeletonCircle />
+            : hasMarketData
+              ? rupiah(breakdown!.basePrice)
+              : "-"
+        }
+        sub={
+          hasMarketData
+            ? `Berdasarkan ${breakdown!.dataPoints} data pasar`
+            : "Data pasar tidak tersedia di provinsi ini"
+        }
+      />
+
+
+
+      <StatCard
+        title="PENYESUAIAN"
+        value={
+          showLoading
+            ? <SkeletonCircle />
+            : hasMarketData
+              ? `${breakdown!.adjustment < 0 ? "-" : "+"} ${rupiah(Math.abs(breakdown!.adjustment))}`
+              : "-"
+        }
+        sub="Condition adjustment (from rules/AI)"
+        highlight={hasMarketData && !!breakdown && breakdown.adjustment < 0}
+      />
+
 
         <StatCard
-          title="PENYESUAIAN"
-          value={adjustmentValue}
-          sub="Condition adjustment (from rules/AI)"
-          highlight={!!breakdown && breakdown.adjustment < 0}
-         
-        />
+            title="NILAI ASET"
+            value={
+              showLoading
+                ? <SkeletonCircle tone="primary" />
+                : hasMarketData
+                  ? rupiah(breakdown!.assetValue)
+                  : "-"
+            }
+            sub={
+              hasMarketData
+                ? breakdown?.confidenceLabel
+                  ? `Confidence: ${breakdown.confidenceLabel}`
+                  : "Asset value"
+                : "Menunggu data pasar"
+            }
+            tone="primary"
+          />
 
-        <StatCard
-          title="NILAI ASET"
-          value={assetValue}
-          sub={breakdown?.confidenceLabel ? `Confidence: ${breakdown.confidenceLabel}` : "Asset value"}
-          tone="primary"
-  
-        />
       </div>
     </div>
   );
