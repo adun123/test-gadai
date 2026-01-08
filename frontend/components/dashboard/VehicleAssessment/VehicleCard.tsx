@@ -82,7 +82,7 @@ function mapVehicleScanToUI(payload: ScannedData): { form: VehicleForm; notes: s
   const s = payload ?? {};
   const vid = s.vehicle_identification ?? {};
   const pc = s.physical_condition ?? {};
- 
+
 
   const brandModel = [vid.make, vid.model].filter(Boolean).join(" ").trim();
   const plateNumber = vid.license_plate ?? "";
@@ -144,6 +144,7 @@ const finalScore =
 
 
 type State = "idle" | "uploading" | "processing" | "done" | "error";
+
 
 export default function VehicleCard({
 

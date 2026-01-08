@@ -55,7 +55,7 @@ const [scanDone, setScanDone] = useState(false);
             setScanDone(gotSomething);
 
             // jangan set null hanya karena brandModel kosong
-            // biarkan vehicle tersimpan parsial supaya UI bisa bilang “scan done tapi blur”
+            // biarkan vehicle tersimpan parsial supaya UI bisa bilang "scan done tapi blur"
             const normalized: VehiclePayload = {
               brandModel: brandModel || undefined,
               year: year || undefined,
