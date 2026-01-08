@@ -310,7 +310,9 @@ export default function DocumentCard() {
                           )
                         )
                       }
+                      onReupload={() => resetSlot(slot.slotId)}  //  ini kuncinya
                     />
+
 
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <button
@@ -335,7 +337,7 @@ export default function DocumentCard() {
           );
         })}
 
-        {/* ✅ ADD BUTTON DI BAWAH LIST */}
+        {/*  ADD BUTTON DI BAWAH LIST */}
         <button
           type="button"
           onClick={addSlot}

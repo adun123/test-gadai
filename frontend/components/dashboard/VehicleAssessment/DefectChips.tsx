@@ -60,7 +60,7 @@ export default function DefectChips({ items, editable, onToggle, onAdd }: Props)
         </span>
       </div>
 
-      {/* ✅ Add manual defect */}
+      {/* Add manual defect */}
       {editable && onAdd ? (
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
@@ -72,13 +72,13 @@ export default function DefectChips({ items, editable, onToggle, onAdd }: Props)
 
           <select
             value={pick}
-            onChange={(e) => setPick(e.target.value as any)}
+            onChange={(e) => setPick(e.target.value as "Minor" | "Moderate" | "Major" | "Severe")}
             className="rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold"
           >
             <option value="Minor">Minor</option>
             <option value="Moderate">Moderate</option>
             <option value="Major">Major</option>
-            <option value="Severe">Severe</option>
+           
           </select>
 
           <button

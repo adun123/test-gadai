@@ -7,7 +7,9 @@ type Props = {
   editMode: boolean;
   onToggleEdit: () => void;
   onChange: (patch: Partial<ExtractedDocument>) => void;
+  onReupload?: () => void; // 
 };
+
 
 function statusDotClass(status: ExtractedDocument["creditStatus"]) {
   if (status === "Lancar") return "bg-green-500";
@@ -16,9 +18,58 @@ function statusDotClass(status: ExtractedDocument["creditStatus"]) {
   return "bg-gray-400";
 }
 
-export default function ExtractedSummary({ doc, editMode, onToggleEdit, onChange }: Props) {
+export default function ExtractedSummary({ doc, editMode, onToggleEdit, onChange, onReupload }: Props) {
+ const nameRaw = (doc.fullName ?? "").trim();
+  const nameUnknown =
+    !nameRaw ||
+    /^unknown$/i.test(nameRaw) ||
+    /^tidak diketahui$/i.test(nameRaw) ||
+    nameRaw === "—";
+
+  const creditUnknown =
+    doc.documentType === "SLIK OJK" &&
+    (doc.creditStatus === "Unknown" || !doc.creditStatus);
+
+  const unreadable = nameUnknown || creditUnknown;
+
+  const unreadableReasons: string[] = [];
+  if (nameUnknown) unreadableReasons.push("Nama debitur tidak terbaca.");
+  if (creditUnknown) unreadableReasons.push("Status kredit terdeteksi 'Unknown'.");
+
+  
+ 
   return (
     <div className="space-y-3">
+      {unreadable ? (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+        <p className="text-sm font-extrabold text-amber-900">
+          Dokumen Tidak terbaca
+        </p>
+        <p className="mt-1 text-xs text-amber-800">
+          {unreadableReasons.join(" ")} Kemungkinan dokumen blur/terpotong. Silakan unggah ulang
+          atau koreksi manual.
+        </p>
+
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={onReupload}
+            className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-extrabold text-amber-900 hover:bg-amber-100"
+          >
+            Upload Ulang Dokumen
+          </button>
+
+          <button
+            type="button"
+            onClick={onToggleEdit}
+            className="rounded-xl bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground hover:opacity-90"
+          >
+            {editMode ? "Selesai Edit" : "Perbaiki Manual"}
+          </button>
+        </div>
+      </div>
+    ) : null}
+
       {/* header row */}
       <div className="flex items-center justify-between">
         <p className="text-xs font-extrabold tracking-wider text-gray-500">EXTRACTED DATA</p>

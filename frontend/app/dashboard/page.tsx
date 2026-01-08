@@ -18,14 +18,19 @@ type VehiclePayload = {
   brandModel?: string;
   year?: string;
   physicalCondition?: VehicleCondition;
-  defects?: string[]; 
+  defects?: string[];
 };
 
+type VehicleAnalyzedInput = {
+  brandModel?: string;
+  year?: string;
+  physicalCondition?: VehicleCondition;
+  defects?: string[] | unknown;
+};
 
 export default function DashboardPage() {
   const [vehicle, setVehicle] = useState<VehiclePayload | null>(null);
-
-  const vehicleReady = !!vehicle?.brandModel;
+const [scanDone, setScanDone] = useState(false);
 
   return (
     <div className="space-y-6 pb-10">
@@ -38,29 +43,39 @@ export default function DashboardPage() {
         <DocumentCard />
 
  <VehicleCard
-  onAnalyzed={(v) => {
-    const brandModel = (v?.brandModel || "").trim();
+          onAnalyzed={(v) => {
+            const input = v as VehicleAnalyzedInput;
 
-    // kalau reset / kosong, bener-bener hapus kendaraan
-    if (!brandModel) {
-      setVehicle(null);
-      return;
-    }
+            const brandModel = (input?.brandModel || "").trim();
+            const year = String(input?.year || "").trim();
+            const defects = Array.isArray(input?.defects) ? (input.defects as string[]) : [];
 
-    const normalized: VehiclePayload = {
-      brandModel,
-      year: String(v?.year || "").trim(),
-      physicalCondition: v?.physicalCondition,
-      defects: Array.isArray((v as any)?.defects) ? (v as any).defects : [],
-    };
+            //  kalau ada output apapun (defect/year/brandModel), anggap scan sudah terjadi
+            const gotSomething = !!brandModel || !!year || defects.length > 0;
+            setScanDone(gotSomething);
 
-    setVehicle(normalized);
-  }}
-/>
+            // jangan set null hanya karena brandModel kosong
+            // biarkan vehicle tersimpan parsial supaya UI bisa bilang "scan done tapi blur"
+            const normalized: VehiclePayload = {
+              brandModel: brandModel || undefined,
+              year: year || undefined,
+              physicalCondition: input?.physicalCondition,
+              defects,
+            };
+
+            // kalau bener-bener kosong semua (reset), baru null
+            if (!gotSomething) {
+              setVehicle(null);
+              return;
+            }
+
+            setVehicle(normalized);
+          }}
+        />
 
 
 
-        <PricingCard vehicleReady={vehicleReady} vehicle={vehicle ?? undefined} />
+        <PricingCard vehicleReady={scanDone} vehicle={vehicle ?? undefined} />
       </DashboardGrid>
     </div>
   );

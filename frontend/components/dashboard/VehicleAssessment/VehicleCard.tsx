@@ -11,13 +11,38 @@ type VehicleAnalyzedPayload = {
   brandModel: string;
   year: string;
   physicalCondition?: VehicleCondition;
-  defects?: string[]; 
+  defects?: string[];
+};
+
+type VehicleIdentification = {
+  make?: string;
+  model?: string;
+  license_plate?: string;
+  estimated_year?: string;
+  year?: string;
+};
+
+type PhysicalCondition = {
+  defects?: string[];
+};
+
+type ConditionScore = {
+  final_score?: number;
+  defects_applied?: unknown[];
+};
+
+type ScannedData = {
+  vehicle_identification?: VehicleIdentification;
+  physical_condition?: PhysicalCondition;
+  conditionScore?: ConditionScore;
+  confidence?: number;
+  images_processed?: number;
 };
 
 type VehicleScanApiResponse = {
   success: boolean;
   document_type: "VEHICLE" | string;
-  scanned_data: any;
+  scanned_data: ScannedData;
   scanned_at: string;
   is_editable: boolean;
   error?: string;
@@ -53,11 +78,11 @@ function computeFinalScoreFromDefects(defects: string[]): number {
 }
 
 
-function mapVehicleScanToUI(payload: any): { form: VehicleForm; notes: string; defects: DefectItem[] } {
+function mapVehicleScanToUI(payload: ScannedData): { form: VehicleForm; notes: string; defects: DefectItem[] } {
   const s = payload ?? {};
   const vid = s.vehicle_identification ?? {};
   const pc = s.physical_condition ?? {};
- 
+
 
   const brandModel = [vid.make, vid.model].filter(Boolean).join(" ").trim();
   const plateNumber = vid.license_plate ?? "";
@@ -81,8 +106,8 @@ const finalScore =
 
   // Handle new defects format: array of objects with description and severity
   const defectsList = cs.defects_applied || pc.defects || [];
-  const defects: DefectItem[] = defectsList.map((d: any, idx: number) => {
-    const labelRaw = typeof d === "string" ? d : (d.description || "Defect");
+  const defects: DefectItem[] = defectsList.map((d: unknown, idx: number) => {
+    const labelRaw = typeof d === "string" ? d : (typeof d === "object" && d !== null && "description" in d ? (d as { description: string }).description : "Defect");
 
     // 1) Ambil severity dari string mentah (labelRaw)
     const lowerRaw = labelRaw.toLowerCase();
@@ -117,39 +142,8 @@ const finalScore =
 }
 
 
+
 type State = "idle" | "uploading" | "processing" | "done" | "error";
-
-function mockAiDetect(): { form: VehicleForm; notes: string; defects: DefectItem[] } {
-  const variants: { form: VehicleForm; notes: string; defects: DefectItem[] }[] = [
-    {
-      form: { brandModel: "Honda Scoopy", plateNumber: "B 1234 XYZ", year: "2021", physicalCondition: "Mulus (Grade A)" },
-      notes: "AI mendeteksi gores ringan di body kanan. Silakan koreksi manual bila perlu.",
-      defects: [
-        { id: "d1", label: "Lecet halus", severity: "low", selected: true },
-        { id: "d2", label: "Baret body", severity: "medium", selected: true },
-      ],
-    },
-    {
-      form: { brandModel: "Yamaha NMAX", plateNumber: "D 9812 AB", year: "2020", physicalCondition: "Normal (Grade B)" },
-      notes: "AI mendeteksi ban agak aus dan baret tipis di cover samping.",
-      defects: [
-        { id: "d3", label: "Ban aus", severity: "medium", selected: true },
-        { id: "d4", label: "Baret tipis", severity: "low", selected: true },
-      ],
-    },
-    {
-      form: { brandModel: "Honda Vario 125", plateNumber: "L 7711 CD", year: "2019", physicalCondition: "Banyak Lecet (Grade C)" },
-      notes: "AI mendeteksi lecet besar dan lampu depan terlihat retak.",
-      defects: [
-        { id: "d5", label: "Lecet besar", severity: "high", selected: true },
-        { id: "d6", label: "Lampu retak", severity: "high", selected: true },
-        { id: "d7", label: "Spion goyang", severity: "medium", selected: true },
-      ],
-    },
-  ];
-
-  return variants[Math.floor(Math.random() * variants.length)];
-}
 
 
 export default function VehicleCard({
@@ -162,6 +156,7 @@ export default function VehicleCard({
   const [state, setState] = useState<State>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [defects, setDefects] = useState<DefectItem[]>([]);
+  const [uploadResetKey, setUploadResetKey] = useState(0);
 
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [form, setForm] = useState<VehicleForm>({
@@ -176,7 +171,7 @@ export default function VehicleCard({
   const [lastFiles, setLastFiles] = useState<File[]>([]);
 
 
-  // ✅ penting: setelah AI isi, field defaultnya terkunci (read-only) sampai user klik Edit
+  //  setelah AI isi, field defaultnya terkunci (read-only) sampai user klik Edit
   const [editMode, setEditMode] = useState(false);
 
   const badge = useMemo(() => {
@@ -268,28 +263,31 @@ export default function VehicleCard({
     }
   }
 
-  function normalizeVehicleScan(data: VehicleScanApiResponse): { ok: boolean; payload: any; error?: string } {
-    // Case A: wrapper
-    if ("success" in data) {
+  function normalizeVehicleScan(data: VehicleScanApiResponse | ScannedData): { ok: boolean; payload: ScannedData; error?: string } {
+    // Case A: wrapper (VehicleScanApiResponse)
+    if (typeof data === "object" && data !== null && "success" in data) {
+      const apiResponse = data as VehicleScanApiResponse;
       return {
-        ok: !!data.success,
-        payload: data.scanned_data,
-        error: data.error,
+        ok: !!apiResponse.success,
+        payload: apiResponse.scanned_data,
+        error: apiResponse.error,
       };
     }
 
-    // Case B: raw (README style)
-    if ((data as any)?.vehicle_identification || (data as any)?.physical_condition) {
-      return { ok: true, payload: data };
+    // Case B: raw (ScannedData - README style)
+    const rawData = data as ScannedData;
+    if (rawData?.vehicle_identification || rawData?.physical_condition) {
+      return { ok: true, payload: rawData };
     }
 
-    return { ok: false, payload: null, error: (data as any)?.error || "Invalid vehicle scan response" };
+    return { ok: false, payload: {} as ScannedData, error: "Invalid vehicle scan response" };
   }
 
 
   //integrasi reset
   function reset() {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
+    setUploadResetKey((k) => k + 1);
     setImageUrl(null);
     setState("idle");
     setErrorMsg(null);
@@ -330,13 +328,24 @@ function applyDefects(next: DefectItem[]) {
 
   const selectedStrings = toPricingDefects(next);
   const score = computeFinalScoreFromDefects(selectedStrings);
-  const newCond = scoreToVehicleCondition(score);
 
-  // ⬇️ ini kunci turunnya grade
+  const hasSelectedDefect = next.some((d) => d.selected);
+
+  // base condition dari score (logic kamu tetap kepake)
+  let newCond = scoreToVehicleCondition(score);
+
+  // 
+  // Catatan: sesuaikan value string ini dengan VehicleCondition kamu
+  if (hasSelectedDefect) {
+    // Kalau scoring kamu bisa ngasih Grade C/D untuk defect berat,
+    // jangan ditimpa jadi B. Jadi kita hanya "naikkan" A → B.
+    if (newCond === "Mulus (Grade A)") {
+      newCond = "Normal (Grade B)";
+    }
+  }
+
   setForm((prev) =>
-    prev.physicalCondition === newCond
-      ? prev
-      : { ...prev, physicalCondition: newCond }
+    prev.physicalCondition === newCond ? prev : { ...prev, physicalCondition: newCond }
   );
 
   setNotes((old) =>
@@ -346,10 +355,11 @@ function applyDefects(next: DefectItem[]) {
   onAnalyzed?.({
     brandModel: form.brandModel,
     year: form.year,
-    physicalCondition: newCond, // ⬅BUKAN yang lama
-    defects: selectedStrings,
+    physicalCondition: newCond,
+    defects: next.filter((d) => d.selected).map((d) => d.label),
   });
 }
+
 
 
 
@@ -381,11 +391,17 @@ function applyDefects(next: DefectItem[]) {
 
       <div className="p-5 space-y-4">
         {/* Image upload input */}
-        <VehicleImageUpload onUpload={handleUpload} disabled={isBusy} />
+        <VehicleImageUpload 
+        key={uploadResetKey}
+        onUpload={handleUpload} 
+        disabled={isBusy} />
 
         {/* Image area */}
         <div className="relative overflow-hidden rounded-2xl border border-border bg-muted">
-          {badge ? <div className={badgeClass(badge.tone)}>{badge.text}</div> : null}
+         {imageUrl && badge ? (
+            <div className={badgeClass(badge.tone)}>{badge.text}</div>
+          ) : null}
+
 
           {imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element

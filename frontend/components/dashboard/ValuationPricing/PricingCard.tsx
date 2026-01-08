@@ -96,7 +96,7 @@ type UiBreakdown = {
   priceRange?: { low?: number; high?: number } | null;
   dataPoints?: number;
 
-  // ✅ tambahan sesuai rumus kamu
+  // tambahan sesuai rumus kamu
   conditionScorePct: number; // 30..100
   totalDeductionPct: number; // 0..?? (sebelum cap)
   effectiveDeductionPct: number; // 0..50 (setelah cap)
@@ -277,8 +277,11 @@ function mapPricingResponseToUi(resp: PricingApiResponse): Omit<UiBreakdown, "co
         base_market_price?: { value?: number; range?: { low?: number; high?: number }; data_points?: number };
       }
     | undefined;
+;
 
   const confidenceLevel = breakdown.confidence_level as { score?: number; level?: string } | undefined;
+
+ 
 
   const baseMarket = Number(pb?.base_market_price?.value ?? pricing.market_price ?? 0);
 
@@ -514,25 +517,40 @@ async function fetchPricing() {
   }, [vehicle]);
 
   // auto pricing (debounce)
- useEffect(() => {
-  // belum siap
-  if (!vehicleReady || !makeModel.make || !makeModel.model) {
+// auto pricing (debounce)
+useEffect(() => {
+  // 1️⃣ belum ada hasil AI sama sekali
+  if (!vehicleReady) {
     setPricing(null);
     setState("idle");
     return;
   }
 
-  // year belum valid -> jangan fetch, tampilkan pesan (opsional)
+  // 2️⃣ FOTO ADA tapi MODEL / MERK TIDAK TERBACA (BLUR)
+  if (!makeModel.make || !makeModel.model) {
+    setPricing(null);
+    setState("idle");
+    setErrorMsg(
+      "Model kendaraan tidak terbaca dengan jelas. Foto kemungkinan blur atau sudut pengambilan kurang tepat. Silakan unggah foto yang lebih jelas atau isi data kendaraan secara manual."
+    );
+    return;
+  }
+
+  // 3️⃣ Tahun tidak valid
   if (!isValidYear(yearNum)) {
     setPricing(null);
     setState("idle");
-    setErrorMsg("Tahun kendaraan belum terbaca (contoh: 2019 atau 2003-2008). Isi manual atau unggah foto tambahan.");
+    setErrorMsg(
+      "Tahun kendaraan belum terbaca dengan benar (contoh: 2019 atau 2003–2008). Isi manual atau unggah foto tambahan."
+    );
     return;
   }
 
+  // 4️⃣ semua valid → pricing boleh jalan
   setErrorMsg(null);
 
   if (debounceRef.current) window.clearTimeout(debounceRef.current);
+
   debounceRef.current = window.setTimeout(() => {
     fetchPricing();
   }, 450);
@@ -541,7 +559,17 @@ async function fetchPricing() {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
   };
 // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [vehicleReady, province, makeModel.make, makeModel.model, yearNum, overallGrade, defects, tenorDays, useMock]);
+}, [
+  vehicleReady,
+  province,
+  makeModel.make,
+  makeModel.model,
+  yearNum,
+  overallGrade,
+  defects,
+  tenorDays,
+  useMock,
+]);
 
   // auto pawn after pricing ready
   useEffect(() => {
@@ -638,6 +666,8 @@ async function fetchPricing() {
           pawnSim={pawnSim}
           pawnState={pawnState}
           formatIDDate={formatIDDate}
+          hasMarketData={breakdown?.dataPoints !== undefined && breakdown.dataPoints > 0}
+          
         />
 
 

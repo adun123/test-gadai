@@ -7,12 +7,13 @@ type PawnSim = {
 
 type Props = {
   vehicleReady: boolean;
+  hasMarketData: boolean;   
   pawnError?: string | null;
-
   breakdown?: {
     appraisalValue?: number;
     effectiveCollateralValue?: number;
   } | null;
+
 
   product: "reguler" | "harian";
   setProduct: (v: "reguler" | "harian") => void;
@@ -34,6 +35,7 @@ export default function PawnSimulation({
   pawnSim,
   pawnState,
   formatIDDate,
+  hasMarketData,
 }: Props) {
   return (
     <>
@@ -43,7 +45,7 @@ export default function PawnSimulation({
         </div>
       ) : null}
 
-      {vehicleReady && breakdown?.appraisalValue ? (
+     {vehicleReady && hasMarketData && typeof breakdown?.appraisalValue === "number" ? (
         <div className="space-y-4">
           <div className="rounded-2xl border border-border bg-muted p-2">
             <div className="grid grid-cols-2 gap-2">
