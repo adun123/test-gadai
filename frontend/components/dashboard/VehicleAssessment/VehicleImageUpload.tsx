@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-
+import { useRef } from "react";
 type Props = {
   onUpload: (files: File[]) => void | Promise<void>;
   disabled?: boolean;
@@ -43,9 +43,13 @@ export default function VehicleImageUpload({
   minFiles = 1,
   maxSizeMB = 10,
 }: Props) {
+    const camRef = useRef<HTMLInputElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
   const [previews, setPreviews] = useState<PreviewItem[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const canAnalyze = previews.length >= minFiles && !disabled;
 
   const totalSize = useMemo(() => previews.reduce((sum, p) => sum + p.size, 0), [previews]);
 
@@ -101,26 +105,43 @@ function validateAndBuild(files: File[]) {
 }
 
 
-  async function commitFiles(files: File[]) {
-    if (disabled) return;
+ function addFiles(files: File[]) {
+  if (disabled) return;
+  setErrorMsg(null);
 
-    setErrorMsg(null);
+  const result = validateAndBuild(files);
+  if (!result.ok) {
+    setErrorMsg(result.error);
+    return;
+  }
 
-    const result = validateAndBuild(files);
-    if (!result.ok) {
-      setErrorMsg(result.error);
-      return;
-    }
+  setPreviews((prev) => {
+    // gabung, bukan replace
+    const merged = [...prev, ...result.items];
 
-    // replace previews
-    setPreviews((prev) => {
-      revokeAll(prev);
-      return result.items;
+    // batasi maxFiles total
+    const trimmed = merged.slice(0, maxFiles);
+
+    // revoke yang kebuang biar gak memory leak
+    const trimmedIds = new Set(trimmed.map((x) => x.id));
+    merged.forEach((x) => {
+      if (!trimmedIds.has(x.id)) URL.revokeObjectURL(x.url);
     });
 
-    // send to parent
-    await onUpload(result.items.map((x) => x.file));
+    return trimmed;
+  });
+}
+
+
+
+async function analyzeNow() {
+  if (!canAnalyze) {
+    setErrorMsg(`Minimal ${minFiles} foto.`);
+    return;
   }
+  setErrorMsg(null);
+  await onUpload(previews.map((x) => x.file));
+}
 
   function clear() {
     setPreviews((prev) => {
@@ -160,7 +181,7 @@ function validateAndBuild(files: File[]) {
           setDragOver(false);
           if (disabled) return;
           const dropped = Array.from(e.dataTransfer.files || []);
-          commitFiles(dropped);
+          addFiles(dropped);
         }}
       >
         <div className="flex items-start justify-between gap-3">
@@ -210,6 +231,15 @@ function validateAndBuild(files: File[]) {
               </div>
             </div>
           </label>
+          <button
+            type="button"
+            onClick={analyzeNow}
+            disabled={!canAnalyze}
+            className="rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50"
+          >
+            Analisa
+          </button>
+
 
           <div className="flex items-center gap-2">
             {previews.length > 0 ? (
@@ -231,13 +261,13 @@ function validateAndBuild(files: File[]) {
           accept=".jpg,.jpeg,.png,image/jpeg,image/png"
 
           multiple
-          capture="environment"
+          // capture="environment"
           disabled={disabled}
           className="hidden"
           onChange={(e) => {
             const list = e.currentTarget.files ? Array.from(e.currentTarget.files) : [];
             e.currentTarget.value = "";
-            commitFiles(list);
+            addFiles(list);
           }}
         />
 
