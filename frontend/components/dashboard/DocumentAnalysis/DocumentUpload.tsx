@@ -32,7 +32,7 @@ export default function DocumentUploadCard({
   disabled,
   label = "Click to Upload",
   helperText = "Upload SLIK OJK atau Payslip",
-  maxSizeMB = 10,
+  maxSizeMB = 5,
 }: Props) {
   const ref = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState<string | null>(null);
