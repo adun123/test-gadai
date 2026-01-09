@@ -1,7 +1,9 @@
+
 "use client";
 
 import { FileText } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
 import DocumentUpload from "./DocumentUpload";
 import ExtractedSummary from "./ExtractedSummary";
 import DetailDrawer from "./DetailDrawer";
@@ -25,6 +27,39 @@ export type ExtractedDocument = {
   notes?: string;
   rawConfidence?: number;
 };
+
+const DOC_CARD_KEY = "pegadaian.dashboard.documentCard.v1";
+
+type PersistedDocSlot = {
+  slotId: string;
+  state: ProcessState;
+  errorMsg: string | null;
+  editMode: boolean;
+  doc: ExtractedDocument | null;
+};
+
+type PersistedDocCard = {
+  useMock: boolean;
+  slots: PersistedDocSlot[];
+  savedAt: number;
+};
+
+function safeParse<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw) as T; } catch { return null; }
+}
+
+function loadDocCard(): PersistedDocCard | null {
+  if (typeof window === "undefined") return null;
+  return safeParse<PersistedDocCard>(localStorage.getItem(DOC_CARD_KEY));
+}
+
+function saveDocCard(payload: Omit<PersistedDocCard, "savedAt">) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DOC_CARD_KEY, JSON.stringify({ ...payload, savedAt: Date.now() }));
+  } catch {}
+}
 
 
 type ProcessState = "idle" | "uploading" | "processing" | "done" | "error";
@@ -229,6 +264,25 @@ export default function DocumentCard() {
       );
     }, 500);
   }
+const hydratedRef = useRef(false);
+
+useEffect(() => {
+  const saved = loadDocCard();
+  if (saved) {
+    setUseMock(!!saved.useMock);
+
+    // kalau kosong, fallback ke [makeSlot()]
+    const nextSlots = Array.isArray(saved.slots) && saved.slots.length ? saved.slots : [makeSlot()];
+    setSlots(nextSlots);
+  }
+  hydratedRef.current = true;
+  
+}, []);
+
+useEffect(() => {
+  if (!hydratedRef.current) return;
+  saveDocCard({ useMock, slots });
+}, [useMock, slots]);
 
   return (
     <section className="rounded-2xl border border-border bg-card shadow-sm">

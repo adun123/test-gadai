@@ -1,11 +1,42 @@
 "use client";
 
 import { Bike } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
 import VehicleImageUpload from "./VehicleImageUpload";
 import VehicleFields, { VehicleForm, VehicleCondition } from "./VehicleFields";
 import Notes from "./Notes";
 import DefectChips, { DefectItem } from "./DefectChips";
+import { clearVehicleUploadCache } from "./VehicleImageUpload"; 
+// sesuaikan path relatif sesuai struktur foldermu
+const VEHICLE_CARD_KEY = "pegadaian.dashboard.vehicleCard.v1";
+type VehicleCardPersist = {
+  form: VehicleForm;
+  defects: DefectItem[];
+  notes: string;
+  editMode: boolean;
+  useMock: boolean;
+  state: State;
+  savedAt: number;
+};
+
+
+function safeParse<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw) as T; } catch { return null; }
+}
+
+function loadVehicleCardPersist(): VehicleCardPersist | null {
+  if (typeof window === "undefined") return null;
+  return safeParse<VehicleCardPersist>(localStorage.getItem(VEHICLE_CARD_KEY));
+}
+
+function saveVehicleCardPersist(payload: Omit<VehicleCardPersist, "savedAt">) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(VEHICLE_CARD_KEY, JSON.stringify({ ...payload, savedAt: Date.now() }));
+  } catch {}
+}
 
 type VehicleAnalyzedPayload = {
   brandModel: string;
@@ -82,7 +113,7 @@ function mapVehicleScanToUI(payload: ScannedData): { form: VehicleForm; notes: s
   const s = payload ?? {};
   const vid = s.vehicle_identification ?? {};
   const pc = s.physical_condition ?? {};
-
+ 
 
   const brandModel = [vid.make, vid.model].filter(Boolean).join(" ").trim();
   const plateNumber = vid.license_plate ?? "";
@@ -145,7 +176,6 @@ const finalScore =
 
 type State = "idle" | "uploading" | "processing" | "done" | "error";
 
-
 export default function VehicleCard({
 
   onAnalyzed,
@@ -167,7 +197,7 @@ export default function VehicleCard({
 
   });
   const [notes, setNotes] = useState("");
-  const [useMock, setUseMock] = useState(true);
+  const [useMock, setUseMock] = useState(false);
   const [lastFiles, setLastFiles] = useState<File[]>([]);
 
 
@@ -285,27 +315,32 @@ export default function VehicleCard({
 
 
   //integrasi reset
-  function reset() {
-    if (imageUrl) URL.revokeObjectURL(imageUrl);
-    setUploadResetKey((k) => k + 1);
-    setImageUrl(null);
-    setState("idle");
-    setErrorMsg(null);
-    setEditMode(false);
-    setForm({ brandModel: "", plateNumber: "", year: "", physicalCondition: "Mulus (Grade A)" });
-    setNotes("");
-    setDefects([]);
-    onAnalyzed?.({
-      brandModel: "",
-      year: "",
-      physicalCondition: undefined,
-      defects: [],
-    });
+ async function reset() {
+  if (imageUrl) URL.revokeObjectURL(imageUrl);
 
+  // 
+  await clearVehicleUploadCache();
 
-  }
+  setUploadResetKey((k) => k + 1);
+  setImageUrl(null);
+  setState("idle");
+  setErrorMsg(null);
+  setEditMode(false);
+  setForm({ brandModel: "", plateNumber: "", year: "", physicalCondition: "Mulus (Grade A)" });
+  setNotes("");
+  setDefects([]);
+
+  onAnalyzed?.({
+    brandModel: "",
+    year: "",
+    physicalCondition: undefined,
+    defects: [],
+  });
+}
+
   const isBusy = state === "uploading" || state === "processing";
   const hasResult = state === "done";
+  
 
   //integrasi reprocess
   async function reprocess() {
@@ -359,6 +394,52 @@ function applyDefects(next: DefectItem[]) {
     defects: next.filter((d) => d.selected).map((d) => d.label),
   });
 }
+const hydratedRef = useRef(false);
+
+useEffect(() => {
+  const saved = loadVehicleCardPersist();
+  if (saved) {
+    setState(saved.state ?? "done");
+    setErrorMsg(null); // biar gak kebawa error lama
+    setDefects(Array.isArray(saved.defects) ? saved.defects : []);
+    setForm(
+      saved.form ?? {
+        brandModel: "",
+        plateNumber: "",
+        year: "",
+        physicalCondition: "Mulus (Grade A)",
+      }
+    );
+    setNotes(saved.notes ?? "");
+    setUseMock(!!saved.useMock);
+    setEditMode(!!saved.editMode);
+
+    // penting: sync ke parent (PricingCard) setelah refresh
+    onAnalyzed?.({
+      brandModel: saved.form?.brandModel ?? "",
+      year: saved.form?.year ?? "",
+      physicalCondition: saved.form?.physicalCondition,
+      defects: toPricingDefects((saved.defects ?? []) as DefectItem[]),
+    });
+  }
+
+  hydratedRef.current = true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
+useEffect(() => {
+  if (!hydratedRef.current) return;
+
+  saveVehicleCardPersist({
+    form,
+    defects,
+    notes,
+    editMode,
+    useMock,
+    state,
+  });
+}, [form, defects, notes, editMode, useMock, state]);
+
 
 
 

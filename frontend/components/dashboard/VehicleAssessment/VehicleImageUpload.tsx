@@ -1,7 +1,39 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { persistFile, metaToObjectUrl, getBlob, delBlob, type StoredFileMeta } from "@/lib/idFiles";
+
+const VEHICLE_IMG_KEY = "pegadaian.dashboard.vehicleImages.v1";
+export async function clearVehicleUploadCache() {
+  // hapus meta list dari sessionStorage
+  let metas: StoredFileMeta[] = [];
+  try {
+    const raw = sessionStorage.getItem(VEHICLE_IMG_KEY);
+    metas = raw ? (JSON.parse(raw) as StoredFileMeta[]) : [];
+    sessionStorage.removeItem(VEHICLE_IMG_KEY);
+  } catch {}
+
+  // hapus blob dari IndexedDB
+  await Promise.all(metas.map((m) => delBlob(m.id)));
+}
+
+function loadMetas(): StoredFileMeta[] {
+  try {
+    const raw = sessionStorage.getItem(VEHICLE_IMG_KEY);
+    return raw ? (JSON.parse(raw) as StoredFileMeta[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveMetas(metas: StoredFileMeta[]) {
+  try {
+    sessionStorage.setItem(VEHICLE_IMG_KEY, JSON.stringify(metas));
+  } catch {}
+}
+
+
+
 type Props = {
   onUpload: (files: File[]) => void | Promise<void>;
   disabled?: boolean;
@@ -11,12 +43,15 @@ type Props = {
 };
 
 type PreviewItem = {
-  id: string;
+  id: string;     // INI = id IndexedDB (bukan random lagi)
   name: string;
   size: number;
   url: string;
-  file: File;
+  file?: File;    // optional (habis refresh akan undefined)
+  type?: string;
+  lastModified?: number;
 };
+
 const ALLOWED_MIMES = new Set(["image/jpeg", "image/png"]);
 const ALLOWED_EXT = new Set(["jpg", "jpeg", "png"]);
 
@@ -43,8 +78,7 @@ export default function VehicleImageUpload({
   minFiles = 1,
   maxSizeMB = 5,
 }: Props) {
-    const camRef = useRef<HTMLInputElement | null>(null);
-  const fileRef = useRef<HTMLInputElement | null>(null);
+
 
   const [previews, setPreviews] = useState<PreviewItem[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -52,12 +86,44 @@ export default function VehicleImageUpload({
   const canAnalyze = previews.length >= minFiles && !disabled;
 
   const totalSize = useMemo(() => previews.reduce((sum, p) => sum + p.size, 0), [previews]);
+useEffect(() => {
+  let cancelled = false;
 
-  function revokeAll(prev: PreviewItem[]) {
+  (async () => {
+    const metas = loadMetas();
+    if (!metas.length) return;
+
+    const urls = await Promise.all(metas.map(metaToObjectUrl));
+    if (cancelled) return;
+
+    const hydrated: PreviewItem[] = metas
+      .map((m, i) => ({
+        id: m.id,
+        name: m.name,
+        size: m.size,
+        url: urls[i] || "",
+        type: m.type,
+        lastModified: m.lastModified,
+      }))
+      .filter((x) => !!x.url);
+
+    setPreviews(hydrated);
+  })();
+
+  return () => {
+    cancelled = true;
+    setPreviews((prev) => {
+      prev.forEach((p) => URL.revokeObjectURL(p.url));
+      return prev;
+    });
+  };
+}, []);
+
+function revokeAll(prev: PreviewItem[]) {
     prev.forEach((p) => URL.revokeObjectURL(p.url));
-  }
+}
 
-function validateAndBuild(files: File[]) {
+function validate(files: File[]) {
   const maxBytes = maxSizeMB * 1024 * 1024;
 
   const imageCandidates = files.filter((f) => {
@@ -73,15 +139,10 @@ function validateAndBuild(files: File[]) {
 
   const rejected = files.filter((f) => !imageCandidates.includes(f));
   if (rejected.length > 0) {
-    return {
-      ok: false as const,
-      error: `File "${rejected[0].name}" ditolak. Gunakan hanya JPG/JPEG atau PNG.`,
-    };
+    return { ok: false as const, error: `File "${rejected[0].name}" ditolak. Gunakan hanya JPG/JPEG atau PNG.` };
   }
 
-  const limited = imageCandidates.slice(0, maxFiles);
-
-  const tooBig = limited.find((f) => f.size > maxBytes);
+  const tooBig = imageCandidates.find((f) => f.size > maxBytes);
   if (tooBig) {
     return {
       ok: false as const,
@@ -89,48 +150,64 @@ function validateAndBuild(files: File[]) {
     };
   }
 
-  if (limited.length < minFiles) {
-    return { ok: false as const, error: `Minimal ${minFiles} foto.` };
-  }
-
-  const next: PreviewItem[] = limited.map((f) => ({
-    id: crypto.randomUUID(),
-    name: f.name,
-    size: f.size,
-    url: URL.createObjectURL(f),
-    file: f,
-  }));
-
-  return { ok: true as const, items: next };
+  return { ok: true as const, files: imageCandidates };
 }
 
 
- function addFiles(files: File[]) {
+
+async function addFiles(files: File[]) {
   if (disabled) return;
   setErrorMsg(null);
 
-  const result = validateAndBuild(files);
+  const result = validate(files);
   if (!result.ok) {
     setErrorMsg(result.error);
     return;
   }
 
+  const existingMetas = loadMetas();
+  const roomLeft = Math.max(0, maxFiles - existingMetas.length);
+  const batch = result.files.slice(0, roomLeft);
+
+  if (batch.length === 0) {
+    setErrorMsg(`Maksimal ${maxFiles} foto.`);
+    return;
+  }
+
+  const newMetas: StoredFileMeta[] = [];
+  for (const f of batch) {
+    newMetas.push(await persistFile(f)); // <-- ini yg bikin tahan refresh
+  }
+
+  const combinedMetas = [...existingMetas, ...newMetas].slice(0, maxFiles);
+  saveMetas(combinedMetas);
+
+  const newUrls = await Promise.all(newMetas.map(metaToObjectUrl));
+  const newPreviews: PreviewItem[] = newMetas
+    .map((m, i) => ({
+      id: m.id,
+      name: m.name,
+      size: m.size,
+      url: newUrls[i] || "",
+      type: m.type,
+      lastModified: m.lastModified,
+      file: batch[i], // optional buat analyze cepat sebelum refresh
+    }))
+    .filter((x) => !!x.url);
+
   setPreviews((prev) => {
-    // gabung, bukan replace
-    const merged = [...prev, ...result.items];
+    const merged = [...prev, ...newPreviews].slice(0, maxFiles);
 
-    // batasi maxFiles total
-    const trimmed = merged.slice(0, maxFiles);
-
-    // revoke yang kebuang biar gak memory leak
-    const trimmedIds = new Set(trimmed.map((x) => x.id));
-    merged.forEach((x) => {
-      if (!trimmedIds.has(x.id)) URL.revokeObjectURL(x.url);
+    // revoke url yang kepotong (defensif)
+    const keep = new Set(merged.map((x) => x.id));
+    prev.forEach((x) => {
+      if (!keep.has(x.id)) URL.revokeObjectURL(x.url);
     });
 
-    return trimmed;
+    return merged;
   });
 }
+
 
 
 
@@ -140,8 +217,34 @@ async function analyzeNow() {
     return;
   }
   setErrorMsg(null);
-  await onUpload(previews.map((x) => x.file));
+
+  const files: File[] = [];
+
+  for (const p of previews) {
+    if (p.file) {
+      files.push(p.file);
+      continue;
+    }
+
+    const blob = await getBlob(p.id);
+    if (!blob) continue;
+
+    files.push(
+      new File([blob], p.name || "vehicle.jpg", {
+        type: p.type || blob.type || "image/jpeg",
+        lastModified: p.lastModified || Date.now(),
+      })
+    );
+  }
+
+  if (files.length < minFiles) {
+    setErrorMsg("File cache tidak ditemukan. Silakan upload ulang fotonya.");
+    return;
+  }
+
+  await onUpload(files);
 }
+
 
   function clear() {
     setPreviews((prev) => {
@@ -150,6 +253,8 @@ async function analyzeNow() {
     });
     setErrorMsg(null);
   }
+
+  
 
   return (
     <div className="rounded-2xl border border-dashed border-border bg-muted p-4">
