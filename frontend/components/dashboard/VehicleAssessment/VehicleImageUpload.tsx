@@ -41,7 +41,7 @@ export default function VehicleImageUpload({
   disabled,
   maxFiles = 5,
   minFiles = 1,
-  maxSizeMB = 10,
+  maxSizeMB = 5,
 }: Props) {
     const camRef = useRef<HTMLInputElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
