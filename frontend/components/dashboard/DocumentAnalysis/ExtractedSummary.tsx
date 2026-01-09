@@ -64,7 +64,7 @@ export default function ExtractedSummary({ doc, editMode, onToggleEdit, onChange
             onClick={onToggleEdit}
             className="rounded-xl bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground hover:opacity-90"
           >
-            {editMode ? "Selesai Edit" : "Perbaiki Manual"}
+            {editMode ? "Selesai " : "Perbaiki Manual"}
           </button>
         </div>
       </div>
